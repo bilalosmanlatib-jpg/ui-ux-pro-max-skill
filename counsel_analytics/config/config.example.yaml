@@ -1,0 +1,45 @@
+# Copy to config.yaml and fill in real values. Never commit config.yaml.
+
+# iManage library + matter (workspace) IDs to analyze in this run.
+matter_ids:
+  - "LIB!12345"
+
+# Which MCP client implementation to use: "session" (data handed in by the
+# orchestrating Claude session) or "direct" (module runs as its own MCP
+# client with org OAuth — Phase 4, standalone/scheduled runs).
+mcp_client: session
+
+# Domains treated as "internal" (Ninety One) when classifying author_side.
+internal_domains:
+  - "ninetyone.com"
+
+# Map external-counsel email domains to a firm display name for rollups.
+firm_domains:
+  examplefirmllp.com: "Example Firm LLP"
+
+# How many calendar days either side of a version event to search
+# correspondence for (ingest.correspond).
+correspondence_window_days: 3
+
+# Business-day calendar for turnaround calculations. MVP: weekdays only.
+business_calendar: weekdays_only
+
+thresholds:
+  # Below this cosine similarity, a re-touched "settled" clause is flagged
+  # as re-argued with a different rationale (requires embeddings; ignored
+  # by the MVP ping-pong fallback).
+  reargument_similarity_threshold: 0.55
+  # A clause touched in >= this many rounds is flagged by the no-embeddings
+  # ping-pong fallback.
+  reargument_ping_pong_rounds: 3
+
+# "none" (MVP default, no external dependency) | "local" (sentence-transformers)
+# | "api" (anthropic).
+embedding_provider: none
+
+# Maps author identities to a role label or stable hash in every output, so
+# metrics can be shown to the firm being measured without exposing named
+# individuals.
+anonymize_authors: false
+
+output_dir: "./data/output"
