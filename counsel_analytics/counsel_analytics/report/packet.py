@@ -82,8 +82,9 @@ def build_review_packet(
     min_abs_value: float = 0.0,
     prior_signoff: Optional[SignOffRecord] = None,
 ) -> ReviewPacket:
+    all_metrics = matter_metrics.metrics + matter_metrics.clause_signals
     highlights, omitted_nonflat_count, flat_count = select_highlights(
-        matter_metrics.metrics, max_highlights=max_highlights, min_abs_value=min_abs_value
+        all_metrics, max_highlights=max_highlights, min_abs_value=min_abs_value
     )
     current_hash = snapshot_hash(matter_metrics)
     stale = prior_signoff is not None and prior_signoff.snapshot_hash != current_hash
@@ -96,7 +97,7 @@ def build_review_packet(
         shown_count=len(highlights),
         omitted_nonflat_count=omitted_nonflat_count,
         flat_count=flat_count,
-        total_metric_count=len(matter_metrics.metrics),
+        total_metric_count=len(all_metrics),
         prior_signoff=prior_signoff,
         stale=stale,
     )

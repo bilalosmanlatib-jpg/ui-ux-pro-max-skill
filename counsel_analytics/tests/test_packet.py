@@ -61,8 +61,14 @@ def test_select_highlights_empty_input():
     assert (shown, omitted, flat_count) == ([], 0, 0)
 
 
-def _matter_metrics(metrics) -> MatterMetrics:
-    return MatterMetrics(matter_ref=MATTER_REF, version_events=[], metrics=metrics, generated_at=GENERATED_AT)
+def _matter_metrics(metrics, clause_signals=None) -> MatterMetrics:
+    return MatterMetrics(
+        matter_ref=MATTER_REF,
+        version_events=[],
+        metrics=metrics,
+        clause_signals=clause_signals or [],
+        generated_at=GENERATED_AT,
+    )
 
 
 def test_render_packet_markdown_no_silent_truncation_line():
@@ -101,6 +107,22 @@ def test_packet_not_stale_when_signoff_matches_current_hash():
     packet = build_review_packet(mm, prior_signoff=prior)
     assert packet.stale is False
     assert "re-review required" not in render_packet_markdown(packet)
+
+
+def test_build_review_packet_includes_clause_signals():
+    """clause_signals (e.g. reargument findings) must be counted and eligible
+    for highlighting, not silently ignored (see report/packet.py's own
+    'no silent caps: every metric is accounted for' contract)."""
+    reargument = _metric("clause_reargument_pingpong", 12.0, "up", note="ping-pong note", doc_ids=["D3"])
+    mm = _matter_metrics(MIXED_METRICS, clause_signals=[reargument])
+
+    packet = build_review_packet(mm, max_highlights=8, min_abs_value=0.0)
+
+    assert packet.total_metric_count == len(MIXED_METRICS) + 1
+    assert "clause_reargument_pingpong" in [h.name for h in packet.highlights]
+    md = render_packet_markdown(packet)
+    assert "clause_reargument_pingpong" in md
+    assert "ping-pong note" in md
 
 
 def test_packet_stale_when_evidence_changed_since_signoff():
