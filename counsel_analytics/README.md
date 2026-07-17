@@ -116,7 +116,9 @@ file, a Markdown report, and `version_events.csv` / `turnaround_rounds.csv`
 resolvable firm. `--matter LIB!xxxx` can be repeated to override
 `matter_ids` from the config for a one-off run. A matter's firm is
 resolved automatically from its counsel-side authors' email domains
-(`firm_domains`) — no separate config needed.
+(`firm_domains`) — no separate config needed. If that finds nothing (e.g.
+compliance-domain matters, which have zero version events by design),
+`run()` falls back to correspondence sender domains instead.
 
 `signoff` appends to `output_dir/signoffs.jsonl` (never mutates or
 deletes). `packet` looks up the latest sign-off for the matter and flags

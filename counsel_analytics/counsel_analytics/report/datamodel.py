@@ -1,8 +1,9 @@
 """JSON + flat CSV output for a matter's metrics.
 
 CSVs are for BI tools; the JSON is the canonical, fully-evidenced record.
-`firm_period_metrics.csv` lands with Phase 3 (counterparty rollup) once
-there's real data to put in it.
+`firm_period_metrics.csv` is a separate, counterparty-rollup output written
+by `report/rollup.py`'s `write_firm_period_metrics_csv` — this module never
+touches it.
 """
 
 from __future__ import annotations
