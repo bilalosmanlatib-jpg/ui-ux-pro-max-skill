@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 
 from counsel_analytics.config import Settings
 from counsel_analytics.ingest.correspond import correlate_correspondence
+from counsel_analytics.mcp.imanage import parse_version_events
+from counsel_analytics.mcp.m365 import parse_messages
 from counsel_analytics.models import CommentThread, Message, VersionEvent
 
 
@@ -63,6 +65,30 @@ def test_correlate_correspondence_empty_threads_returns_empty():
     filtered, rounds = correlate_correspondence([], VERSIONS, _settings())
     assert filtered == []
     assert rounds == {}
+
+
+def test_correlate_correspondence_handles_naive_version_and_aware_message_timestamps():
+    # Realistic shape: iManage-derived VersionEvent timestamps are often
+    # timezone-naive (on-prem `modifiedDate` with no offset), while M365
+    # Message timestamps are always aware ('Z'-suffixed Graph `sentDateTime`).
+    # This must not raise TypeError on `message.timestamp - version.timestamp`.
+    naive_versions = parse_version_events(
+        "LIB!4001",
+        [{"version": 1, "author": "jane.doe@ninetyone.com", "modifiedDate": "2026-02-02T09:00:00"}],
+        internal_domains=["ninetyone.com"],
+        firm_domains={},
+    )
+    aware_messages = parse_messages(
+        [{"from": "counsel@examplefirmllp.com", "sentDateTime": "2026-02-03T09:00:00Z", "body": "near v1"}],
+        internal_domains=["ninetyone.com"],
+        firm_domains={"examplefirmllp.com": "Example Firm LLP"},
+    )
+    thread = CommentThread(matter_id="LIB!3000", source="outlook", messages=aware_messages)
+
+    filtered, rounds = correlate_correspondence([thread], naive_versions, _settings(window_days=3))
+
+    assert {m.text for t in filtered for m in t.messages} == {"near v1"}
+    assert rounds[id(aware_messages[0])] == 0
 
 
 def test_correlate_correspondence_preserves_source_grouping():

@@ -117,12 +117,20 @@ def _is_fallback_id(clause_id: str) -> bool:
     return clause_id.startswith("h-") or clause_id.startswith("para-")
 
 
-def _find_fuzzy_match(segment: ClauseSegment, histories: list[ClauseHistory]) -> int | None:
+def _find_fuzzy_match(
+    segment: ClauseSegment, histories: list[ClauseHistory], version_no: int
+) -> int | None:
     best_idx, best_score = None, 0
     for idx, history in enumerate(histories):
         if not history.entries:
             continue
-        last = history.entries[-1].segment
+        last = history.entries[-1]
+        if last.version_no == version_no:
+            # Already matched to a segment from this same version during
+            # this pass — never fuzzy-match a second, distinct clause from
+            # the same version onto it.
+            continue
+        last = last.segment
         if segment.title and last.title:
             score = fuzz.token_set_ratio(segment.title, last.title)
         else:
@@ -146,7 +154,7 @@ def align_clause_histories(segments_by_version: dict[int, list[ClauseSegment]]) 
             if not _is_fallback_id(segment.clause_id) and segment.clause_id in primary_index:
                 target_idx = primary_index[segment.clause_id]
             else:
-                target_idx = _find_fuzzy_match(segment, histories)
+                target_idx = _find_fuzzy_match(segment, histories, version_no)
 
             if target_idx is None:
                 histories.append(ClauseHistory(clause_id=segment.clause_id, entries=[]))

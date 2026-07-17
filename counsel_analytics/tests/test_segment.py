@@ -96,3 +96,23 @@ def test_align_clause_histories_new_clause_inserted_mid_thread_is_marked_changed
 
 def test_align_clause_histories_empty_input():
     assert align_clause_histories({}) == []
+
+
+def test_align_clause_histories_two_new_clauses_same_version_stay_separate():
+    # v2 introduces two brand-new numbered clauses in the same version.
+    # Neither clause_id is in primary_index yet, so both fall through to
+    # fuzzy matching. Their titles are similar enough (token_set_ratio) that
+    # the second must not be allowed to fuzzy-match onto the history just
+    # created for the first within this same version.
+    v1 = segment_text("1. Confidentiality\nStandard confidentiality clause.\n", 1)
+    v2 = segment_text(
+        "1. Confidentiality\nStandard confidentiality clause.\n\n"
+        "5. Indemnification\nParty A indemnifies Party B for breach.\n\n"
+        "6. Indemnification Undertaking\nParty A indemnifies Party B for any breach and losses.\n",
+        2,
+    )
+    histories = align_clause_histories({1: v1, 2: v2})
+
+    new_histories = [h for h in histories if h.entries[0].version_no == 2]
+    assert len(new_histories) == 2
+    assert all(len(h.entries) == 1 for h in new_histories)

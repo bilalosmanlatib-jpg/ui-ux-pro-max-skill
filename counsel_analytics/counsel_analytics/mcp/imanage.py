@@ -9,7 +9,7 @@ is the one place that mapping lives, by design.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from dateutil import parser as dateutil_parser
@@ -32,10 +32,18 @@ def _first(raw: dict[str, Any], keys: tuple[str, ...]) -> Any:
 
 def _parse_timestamp(value: Any) -> datetime:
     if isinstance(value, datetime):
-        return value
-    if not value:
-        raise ValueError("Version record is missing a timestamp field")
-    return dateutil_parser.parse(str(value))
+        parsed = value
+    else:
+        if not value:
+            raise ValueError("Version record is missing a timestamp field")
+        parsed = dateutil_parser.parse(str(value))
+    # iManage fields (e.g. on-prem `modifiedDate`) are frequently
+    # timezone-naive. Assume UTC so these compare cleanly against
+    # timezone-aware timestamps from other sources (e.g. Graph's
+    # 'Z'-suffixed `sentDateTime`) instead of raising on subtraction.
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def classify_author_side(

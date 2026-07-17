@@ -10,7 +10,7 @@ side-classification logic.
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from dateutil import parser as dateutil_parser
@@ -45,10 +45,17 @@ def _first(raw: dict[str, Any], keys: tuple[str, ...]) -> Any:
 
 def _parse_timestamp(value: Any) -> datetime:
     if isinstance(value, datetime):
-        return value
-    if not value:
-        raise ValueError("Message record is missing a timestamp field")
-    return dateutil_parser.parse(str(value))
+        parsed = value
+    else:
+        if not value:
+            raise ValueError("Message record is missing a timestamp field")
+        parsed = dateutil_parser.parse(str(value))
+    # Some sources (e.g. chat exports, legacy email fields) omit an offset.
+    # Assume UTC so these compare cleanly against timezone-aware timestamps
+    # from other sources instead of raising on subtraction.
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def _extract_body_text(value: Any) -> str:
