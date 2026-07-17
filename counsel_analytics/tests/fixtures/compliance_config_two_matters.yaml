@@ -1,0 +1,11 @@
+matter_ids:
+  - "LIB!5000"
+  - "LIB!6000"
+domain: compliance
+mcp_client: session
+internal_domains:
+  - "ninetyone.com"
+firm_domains:
+  fca.org.uk: "FCA"
+anonymize_authors: false
+output_dir: "./data/output"

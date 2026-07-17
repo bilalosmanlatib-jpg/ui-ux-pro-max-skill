@@ -25,7 +25,7 @@ from datetime import datetime
 
 from counsel_analytics.mcp.imanage import classify_author_side
 from counsel_analytics.metrics._stats import linear_trend_slope, mean
-from counsel_analytics.models import CounterpartyRollup, Direction, Evidence, MatterMetrics, Metric, VersionEvent
+from counsel_analytics.models import CommentThread, CounterpartyRollup, Direction, Evidence, MatterMetrics, Metric, VersionEvent
 
 _MIN_MATTERS_FOR_ROLLUP = 2
 _TREND_EPSILON = 0.001
@@ -47,6 +47,19 @@ def resolve_matter_firm(
         _side, firm = classify_author_side(event.author_id, internal_domains, firm_domains)
         if firm:
             firms.append(firm)
+    if not firms:
+        return None
+    return Counter(firms).most_common(1)[0][0]
+
+
+def resolve_firm_from_threads(threads: list[CommentThread]) -> str | None:
+    """Same majority-vote logic as `resolve_matter_firm`, but over
+    correspondence rather than document version events — the only signal
+    available for domains with no documents to diff (e.g. compliance, see
+    `sources/compliance.py`), and a fallback for any matter where the
+    version-event-based resolution above turns up nothing.
+    """
+    firms = [message.firm for thread in threads for message in thread.messages if message.firm]
     if not firms:
         return None
     return Counter(firms).most_common(1)[0][0]
@@ -104,7 +117,12 @@ def _build_rollup(firm: str, ordered_matters: list[MatterMetrics]) -> Counterpar
                 unit=f"{unit}_per_matter",
                 direction=_direction(slope),
                 evidence=Evidence(
-                    doc_ids=[],
+                    # Not document ids at this level — the workspace_ids of
+                    # the specific matters this metric's points were drawn
+                    # from (a subset of the firm's matters when a metric
+                    # doesn't appear on all of them). `report/rollup.py`'s
+                    # CSV writer relies on this to attribute each row.
+                    doc_ids=[p[2] for p in points],
                     timestamps=[p[3] for p in points],
                     quotes=quotes[:_MAX_EVIDENCE_QUOTES],
                 ),

@@ -14,6 +14,7 @@ def test_parse_messages_handles_varied_key_shapes():
 
     assert len(messages) == 3
     assert [m.sender_side for m in messages] == ["counsel", "internal", "counsel"]
+    assert [m.firm for m in messages] == ["Example Firm LLP", None, "Example Firm LLP"]
     assert messages[0].text == "Hello there."
     assert messages[1].text == "Thanks, reviewing now."
     assert messages[2].text == "Nested body dict."

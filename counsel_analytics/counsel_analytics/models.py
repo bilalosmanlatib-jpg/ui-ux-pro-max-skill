@@ -77,6 +77,7 @@ class Message(BaseModel):
     sender_side: AuthorSide
     text: str
     subject: Optional[str] = None
+    firm: Optional[str] = None
 
 
 class CommentThread(BaseModel):

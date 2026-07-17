@@ -75,13 +75,14 @@ def parse_messages(
     messages = []
     for raw in raw_messages:
         sender_identity = _first(raw, _SENDER_KEYS) or "unknown"
-        side, _firm = classify_author_side(str(sender_identity), internal_domains, firm_domains)
+        side, firm = classify_author_side(str(sender_identity), internal_domains, firm_domains)
         messages.append(
             Message(
                 timestamp=_parse_timestamp(_first(raw, _TIMESTAMP_KEYS)),
                 sender_side=side,
                 text=_extract_body_text(_first(raw, _BODY_KEYS)),
                 subject=_first(raw, _SUBJECT_KEYS),
+                firm=firm,
             )
         )
     messages.sort(key=lambda m: m.timestamp)

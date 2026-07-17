@@ -1,0 +1,54 @@
+{
+  "workspaces": {
+    "LIB!5000": {
+      "name": "FCA Inquiry - Client Data Handling",
+      "custom1": "CLIENT003",
+      "custom2": "CASE5000"
+    },
+    "LIB!6000": {
+      "name": "FCA Inquiry - Trade Reporting",
+      "custom1": "CLIENT004",
+      "custom2": "CASE6000"
+    }
+  },
+  "container_children": {
+    "LIB!5000|workspace": [],
+    "LIB!6000|workspace": []
+  },
+  "document_versions": {},
+  "document_text": {},
+  "correspondence": {
+    "LIB!5000": [
+      {
+        "source": "outlook",
+        "from": "supervisor@fca.org.uk",
+        "timestamp": "2026-01-02T09:00:00Z",
+        "subject": "Data Handling Inquiry - Initial Request",
+        "body": "Please provide the requested records within 14 days."
+      },
+      {
+        "source": "outlook",
+        "from": "jane.doe@ninetyone.com",
+        "timestamp": "2026-01-05T09:00:00Z",
+        "subject": "RE: Data Handling Inquiry - Initial Request",
+        "body": "Please see attached records as requested."
+      }
+    ],
+    "LIB!6000": [
+      {
+        "source": "outlook",
+        "from": "supervisor@fca.org.uk",
+        "timestamp": "2026-03-02T09:00:00Z",
+        "subject": "Trade Reporting Inquiry - Initial Request",
+        "body": "Please provide the requested trade records within 14 days."
+      },
+      {
+        "source": "outlook",
+        "from": "jane.doe@ninetyone.com",
+        "timestamp": "2026-03-05T09:00:00Z",
+        "subject": "RE: Trade Reporting Inquiry - Initial Request",
+        "body": "Please see attached records as requested."
+      }
+    ]
+  }
+}

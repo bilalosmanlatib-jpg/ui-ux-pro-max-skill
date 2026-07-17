@@ -20,7 +20,11 @@ def _rollup(firm="Example Firm LLP", with_metrics=True) -> CounterpartyRollup:
                 value=-1.5,
                 unit="business_days_per_matter",
                 direction="down",
-                evidence=Evidence(timestamps=[], quotes=["LIB!1000 (2026-01-01): 5.0", "LIB!3000 (2026-02-01): 2.0"]),
+                evidence=Evidence(
+                    doc_ids=["LIB!1000", "LIB!3000"],
+                    timestamps=[],
+                    quotes=["LIB!1000 (2026-01-01): 5.0", "LIB!3000 (2026-02-01): 2.0"],
+                ),
                 note="Trend note, hypothesis-level.",
             )
         ]
@@ -52,6 +56,34 @@ def test_write_firm_period_metrics_csv_columns_and_rows(tmp_path):
     assert "firm,metric_name,value,unit,direction,note,matters" in text
     assert "Example Firm LLP,counsel_turnaround_mean_firm_trend" in text
     assert "LIB!1000;LIB!3000" in text
+
+
+def test_write_firm_period_metrics_csv_matters_column_reflects_metric_subset(tmp_path):
+    # 3 matters in the firm, but the metric's evidence only names 2 of them
+    # -- the CSV's matters column must reflect that subset, not all 3.
+    rollup = CounterpartyRollup(
+        firm="Example Firm LLP",
+        matters=[
+            MatterRef(library="LIB", workspace_id="LIB!1000", display_name="M1", firm="Example Firm LLP"),
+            MatterRef(library="LIB", workspace_id="LIB!3000", display_name="M2", firm="Example Firm LLP"),
+            MatterRef(library="LIB", workspace_id="LIB!5000", display_name="M3", firm="Example Firm LLP"),
+        ],
+        metrics=[
+            Metric(
+                name="counsel_turnaround_mean_firm_trend",
+                value=-1.5,
+                unit="business_days_per_matter",
+                direction="down",
+                evidence=Evidence(doc_ids=["LIB!1000", "LIB!3000"], timestamps=[], quotes=[]),
+                note="n",
+            )
+        ],
+        generated_at=_GENERATED_AT,
+    )
+    path = write_firm_period_metrics_csv([rollup], tmp_path)
+    text = path.read_text(encoding="utf-8")
+    assert "LIB!1000;LIB!3000" in text
+    assert "LIB!5000" not in text
 
 
 def test_write_all_rollups_writes_json_csv_and_markdown(tmp_path):

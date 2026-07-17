@@ -25,7 +25,11 @@ from counsel_analytics.ingest.correspond import correlate_correspondence
 from counsel_analytics.ingest.enumerate import enumerate_all
 from counsel_analytics.ingest.extract import extract_version_text
 from counsel_analytics.mcp.client import build_client
-from counsel_analytics.metrics.aggregate import compute_counterparty_rollups, resolve_matter_firm
+from counsel_analytics.metrics.aggregate import (
+    compute_counterparty_rollups,
+    resolve_firm_from_threads,
+    resolve_matter_firm,
+)
 from counsel_analytics.metrics.reargument import compute_reargument_metrics
 from counsel_analytics.metrics.tone import compute_tone_metrics
 from counsel_analytics.metrics.turnaround import compute_turnaround_metrics
@@ -153,9 +157,13 @@ def run(config_path: str, raw_data_path: str, matter_overrides: list[str] | None
         correlated_threads, message_rounds = correlate_correspondence(raw_threads, version_events, settings)
         metrics.extend(compute_tone_metrics(timeline.matter_ref, correlated_threads, settings, rounds=message_rounds))
 
-        matter_ref = timeline.matter_ref.model_copy(
-            update={"firm": resolve_matter_firm(version_events, settings.internal_domains, settings.firm_domains)}
-        )
+        firm = resolve_matter_firm(version_events, settings.internal_domains, settings.firm_domains)
+        if firm is None:
+            # No counsel-side version events to resolve from (always true for
+            # the compliance domain, which has no documents — see
+            # sources/compliance.py) — fall back to correspondence.
+            firm = resolve_firm_from_threads(raw_threads)
+        matter_ref = timeline.matter_ref.model_copy(update={"firm": firm})
         matter_metrics = MatterMetrics(
             matter_ref=matter_ref,
             version_events=version_events,

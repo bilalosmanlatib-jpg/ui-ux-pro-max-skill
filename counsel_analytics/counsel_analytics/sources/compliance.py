@@ -41,7 +41,7 @@ class ComplianceSourceAdapter:
                     workspace_id=matter_id,
                     client_id=profile.get("custom1"),
                     matter_id=profile.get("custom2"),
-                    firm=None,  # resolved later from correspondence, during rollup
+                    firm=None,  # resolved later from correspondence, in cli.run()
                     display_name=profile.get("name") or profile.get("description") or matter_id,
                 )
             )

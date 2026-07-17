@@ -7,7 +7,6 @@ a single matter's `MatterMetrics`.
 from __future__ import annotations
 
 import csv
-import json
 from pathlib import Path
 
 from pydantic import TypeAdapter
@@ -33,8 +32,12 @@ def write_firm_period_metrics_csv(rollups: list[CounterpartyRollup], output_dir:
         writer = csv.writer(f)
         writer.writerow(["firm", "metric_name", "value", "unit", "direction", "note", "matters"])
         for rollup in rollups:
-            matter_ids = ";".join(m.workspace_id for m in rollup.matters)
             for metric in rollup.metrics:
+                # `evidence.doc_ids` holds the workspace_ids of just the
+                # matters this metric's points were drawn from — a subset of
+                # `rollup.matters` when the metric doesn't appear on all of
+                # the firm's matters (see metrics/aggregate.py).
+                matter_ids = ";".join(metric.evidence.doc_ids)
                 writer.writerow(
                     [rollup.firm, metric.name, metric.value, metric.unit, metric.direction, metric.note or "", matter_ids]
                 )
