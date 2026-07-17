@@ -56,6 +56,25 @@ def test_select_highlights_all_flat_returns_empty():
     assert flat_count == 1
 
 
+def test_select_highlights_ranks_cosine_similarity_by_severity_not_magnitude():
+    """clause_reargument_semantic (unit=cosine_similarity) encodes severity
+    inversely: a LOWER similarity is a MORE concerning reopened clause.
+    Ranking by abs(value) would rank the barely-below-threshold, least
+    concerning case (0.54) ahead of the severely dissimilar, most
+    concerning case (0.02) — see report/packet.py's `_salience`."""
+    less_concerning = _metric("clause_reargument_semantic", 0.54, "down", note="barely below threshold")
+    less_concerning = less_concerning.model_copy(update={"unit": "cosine_similarity"})
+    more_concerning = _metric("clause_reargument_semantic", 0.02, "down", note="severely dissimilar")
+    more_concerning = more_concerning.model_copy(update={"unit": "cosine_similarity"})
+
+    shown, omitted, _ = select_highlights(
+        [less_concerning, more_concerning], max_highlights=1, min_abs_value=0.0
+    )
+
+    assert [h.note for h in shown] == ["severely dissimilar"]
+    assert omitted == 1
+
+
 def test_select_highlights_empty_input():
     shown, omitted, flat_count = select_highlights([], max_highlights=8, min_abs_value=0.0)
     assert (shown, omitted, flat_count) == ([], 0, 0)

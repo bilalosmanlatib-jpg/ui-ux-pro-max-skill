@@ -33,9 +33,6 @@ class Settings(BaseModel):
     packet: PacketSettings = Field(default_factory=PacketSettings)
     tone_lexicon_path: Optional[str] = None
 
-    def firm_for_domain(self, domain: str) -> str | None:
-        return self.firm_domains.get(domain.lower())
-
 
 def load_settings(path: str | Path) -> Settings:
     path = Path(path)

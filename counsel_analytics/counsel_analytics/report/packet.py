@@ -40,15 +40,28 @@ class ReviewPacket(BaseModel):
     stale: bool = False
 
 
+def _salience(metric: Metric) -> float:
+    """Coarse, unit-naive salience proxy (a 3-day turnaround and a 0.4
+    change-ratio aren't literally comparable): normally abs(value), except
+    for cosine-similarity metrics (e.g. clause_reargument_semantic), where
+    the value itself is inversely severe — a LOWER similarity means a MORE
+    substantively different, more concerning reopened clause. Using
+    abs(value) there would rank a barely-below-threshold, low-concern case
+    ahead of a severely dissimilar, high-concern one.
+    """
+    if metric.unit == "cosine_similarity":
+        return 1.0 - metric.value
+    return abs(metric.value)
+
+
 def select_highlights(
     metrics: list[Metric], *, max_highlights: int, min_abs_value: float
 ) -> tuple[list[PacketHighlight], int, int]:
     """Returns (shown_highlights, omitted_nonflat_count, flat_count).
 
-    Ranking is by abs(value) descending — a coarse, unit-naive salience
-    proxy (a 3-day turnaround and a 0.4 change-ratio aren't literally
-    comparable). No silent caps: every metric that doesn't make it into
-    `shown_highlights` is accounted for in one of the two counts.
+    Ranking is by salience descending (see `_salience`). No silent caps:
+    every metric that doesn't make it into `shown_highlights` is accounted
+    for in one of the two counts.
     """
     non_flat = [m for m in metrics if m.direction != "flat"]
     flat_count = len(metrics) - len(non_flat)
@@ -56,7 +69,7 @@ def select_highlights(
     eligible = [m for m in non_flat if abs(m.value) >= min_abs_value]
     below_threshold_count = len(non_flat) - len(eligible)
 
-    ranked = sorted(eligible, key=lambda m: abs(m.value), reverse=True)
+    ranked = sorted(eligible, key=_salience, reverse=True)
     shown = ranked[:max_highlights]
     omitted_nonflat_count = (len(ranked) - len(shown)) + below_threshold_count
 
@@ -68,7 +81,7 @@ def select_highlights(
             direction=m.direction,
             note=m.note,
             document_id=m.evidence.doc_ids[0] if m.evidence.doc_ids else None,
-            magnitude=abs(m.value),
+            magnitude=_salience(m),
         )
         for m in shown
     ]

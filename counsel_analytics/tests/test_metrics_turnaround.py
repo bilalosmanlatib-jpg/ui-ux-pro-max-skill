@@ -52,3 +52,24 @@ def test_compute_turnaround_metrics_no_rounds_returns_empty():
     rounds, metrics = compute_turnaround_metrics(DOC, solo_internal, diffs=[])
     assert rounds == []
     assert metrics == []
+
+
+def test_detect_handoff_rounds_unknown_author_drops_only_affected_round():
+    """An 'unknown'-classified author mid-round must not corrupt every
+    later round on the document — only the round open at the time of the
+    unknown side should be dropped; later, unambiguous rounds must still
+    be detected (see metrics/turnaround.py's round-in-progress reset)."""
+    versions = [
+        _event(1, "internal", "2026-01-05T09:00:00"),
+        _event(2, "counsel", "2026-01-06T09:00:00"),
+        _event(3, "unknown", "2026-01-07T09:00:00"),
+        _event(4, "internal", "2026-01-08T09:00:00"),
+        _event(5, "internal", "2026-01-09T09:00:00"),
+        _event(6, "counsel", "2026-01-12T09:00:00"),
+        _event(7, "internal", "2026-01-16T09:00:00"),
+    ]
+
+    rounds = detect_handoff_rounds(versions, diffs=[])
+
+    assert len(rounds) == 1
+    assert (rounds[0].sent_version, rounds[0].returned_version) == (5, 7)

@@ -12,7 +12,6 @@ dependencies = [
 
 [project.optional-dependencies]
 embeddings = ["sentence-transformers>=2.2"]
-llm = ["anthropic>=0.40"]
 direct-mcp = ["mcp>=1.0"]
 dev = ["pytest>=7.0"]
 

@@ -37,6 +37,14 @@ def detect_handoff_rounds(
     sent_version: VersionEvent | None = None
 
     for cur, nxt in zip(versions, versions[1:]):
+        if cur.author_side == "unknown" or nxt.author_side == "unknown":
+            # An unclassified author breaks our ability to say whether this
+            # pair is inside a hand-off round or not. Drop whatever round was
+            # in progress rather than let it linger — otherwise the `if
+            # sent_version is None` guard below never re-triggers and every
+            # later internal->counsel start silently stops being detected.
+            sent_version = None
+            continue
         if sent_version is None and cur.author_side == "internal" and nxt.author_side == "counsel":
             sent_version = cur
         elif sent_version is not None and cur.author_side == "counsel" and nxt.author_side == "internal":
