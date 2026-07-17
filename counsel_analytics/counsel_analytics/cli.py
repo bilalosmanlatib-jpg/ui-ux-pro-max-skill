@@ -1,6 +1,7 @@
 """`counsel-analytics` CLI: `run` (turnaround/volume/clause/tone analysis),
 `packet` (condensed review packet), `signoff` (record a decision),
-`verify-signoffs` (check the audit log's hash chain).
+`verify-signoffs` (check the audit log's hash chain), `rollup` (combine
+separately-run matter reports into a cross-matter counterparty rollup).
 
 This module never calls an MCP tool itself. In `mcp_client: session` mode
 (the only implemented mode), a Claude session with the iManage Work /
@@ -154,7 +155,9 @@ def run(config_path: str, raw_data_path: str, matter_overrides: list[str] | None
             clause_signals.extend(reargument_metrics)
 
         raw_threads = source.get_correspondence(timeline.matter_ref)
-        correlated_threads, message_rounds = correlate_correspondence(raw_threads, version_events, settings)
+        correlated_threads, message_rounds = correlate_correspondence(
+            raw_threads, version_events, settings, has_documents=bool(timeline.documents)
+        )
         metrics.extend(compute_tone_metrics(timeline.matter_ref, correlated_threads, settings, rounds=message_rounds))
 
         firm = resolve_matter_firm(version_events, settings.internal_domains, settings.firm_domains)

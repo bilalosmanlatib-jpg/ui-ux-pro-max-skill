@@ -47,7 +47,7 @@ class RedlineSourceAdapter:
                     workspace_id=matter_id,
                     client_id=profile.get("custom1"),
                     matter_id=profile.get("custom2"),
-                    firm=None,  # resolved later, per-document, during rollup
+                    firm=None,  # resolved later, per-matter (majority vote over the matter's version events), in cli.run()
                     display_name=profile.get("name") or profile.get("description") or matter_id,
                 )
             )

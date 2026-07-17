@@ -66,6 +66,33 @@ def test_correlate_correspondence_no_version_events_passes_everything_through():
     assert rounds == {}
 
 
+def test_correlate_correspondence_no_version_events_compliance_domain_no_warning(caplog):
+    # has_documents=False (the default, e.g. the compliance domain) is the
+    # intentional case -- no warning, since there's no document timeline by
+    # design, not because every document happened to enumerate zero events.
+    message = _message("2026-02-01T09:00:00+00:00")
+    thread = CommentThread(matter_id="LIB!3000", source="outlook", messages=[message])
+    with caplog.at_level("WARNING"):
+        correlate_correspondence([thread], [], _settings(), has_documents=False)
+    assert caplog.records == []
+
+
+def test_correlate_correspondence_no_version_events_with_documents_warns(caplog):
+    # has_documents=True but version_events is still empty means a
+    # redline-domain matter whose documents all enumerated zero version
+    # events (e.g. get_document_versions came back empty for every one) --
+    # correspondence-window filtering is silently disabled, so this should
+    # be flagged even though the pass-through behavior is the same.
+    message = _message("2026-02-01T09:00:00+00:00")
+    thread = CommentThread(matter_id="LIB!3000", source="outlook", messages=[message])
+    with caplog.at_level("WARNING"):
+        filtered, rounds = correlate_correspondence([thread], [], _settings(), has_documents=True)
+    assert len(filtered) == 1
+    assert rounds == {}
+    assert len(caplog.records) == 1
+    assert "LIB!3000" in caplog.records[0].message
+
+
 def test_correlate_correspondence_empty_threads_returns_empty():
     filtered, rounds = correlate_correspondence([], VERSIONS, _settings())
     assert filtered == []

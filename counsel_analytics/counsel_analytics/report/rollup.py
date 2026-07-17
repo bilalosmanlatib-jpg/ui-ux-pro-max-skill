@@ -1,7 +1,11 @@
 """JSON + flat CSV + Markdown output for cross-matter counterparty
-rollups (Phase 3). Mirrors `report/datamodel.py`/`generate.py`'s
-structure-vs-render split, but for `CounterpartyRollup` objects instead of
-a single matter's `MatterMetrics`.
+rollups (Phase 3). Unlike `report/datamodel.py`/`generate.py` — which keep
+a single matter's structure (JSON/CSV) and render (Markdown) in separate
+files — this module deliberately keeps both together in one file, since
+`CounterpartyRollup` output is small enough that splitting it wouldn't pay
+for itself. `write_rollup_json`/`write_firm_period_metrics_csv` build the
+structure; `render_rollup_markdown` renders it; `write_all_rollups` ties
+both together.
 """
 
 from __future__ import annotations
