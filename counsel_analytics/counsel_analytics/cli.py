@@ -25,6 +25,7 @@ from counsel_analytics.ingest.correspond import correlate_correspondence
 from counsel_analytics.ingest.enumerate import enumerate_all
 from counsel_analytics.ingest.extract import extract_version_text
 from counsel_analytics.mcp.client import build_client
+from counsel_analytics.metrics.aggregate import compute_counterparty_rollups, resolve_matter_firm
 from counsel_analytics.metrics.reargument import compute_reargument_metrics
 from counsel_analytics.metrics.tone import compute_tone_metrics
 from counsel_analytics.metrics.turnaround import compute_turnaround_metrics
@@ -33,6 +34,7 @@ from counsel_analytics.models import MatterMetrics
 from counsel_analytics.report.datamodel import MatterReportBundle, matter_slug, write_all
 from counsel_analytics.report.generate import generate_markdown
 from counsel_analytics.report.packet import build_review_packet, render_packet_markdown
+from counsel_analytics.report.rollup import write_all_rollups
 from counsel_analytics.signoff import (
     SignOffRecord,
     append_signoff,
@@ -87,6 +89,18 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     verify_parser.add_argument("--config", default="config.yaml", help="Path to config.yaml")
 
+    rollup_parser = subparsers.add_parser(
+        "rollup", help="Compute a counterparty (firm) rollup across separately-run matter reports"
+    )
+    rollup_parser.add_argument("--config", default="config.yaml", help="Path to config.yaml")
+    rollup_parser.add_argument(
+        "--report",
+        required=True,
+        action="append",
+        dest="reports",
+        help="Path to a <slug>.json report written by `run` (repeatable, 2+ needed per firm)",
+    )
+
     return parser
 
 
@@ -102,6 +116,7 @@ def run(config_path: str, raw_data_path: str, matter_overrides: list[str] | None
     output_dir = Path(settings.output_dir)
     cache_dir = output_dir / "_text_cache"
     written: list[Path] = []
+    all_matter_metrics: list[MatterMetrics] = []
 
     for timeline in enumerate_all(source):
         version_events = []
@@ -137,8 +152,11 @@ def run(config_path: str, raw_data_path: str, matter_overrides: list[str] | None
         correlated_threads, message_rounds = correlate_correspondence(raw_threads, version_events, settings)
         metrics.extend(compute_tone_metrics(timeline.matter_ref, correlated_threads, settings, rounds=message_rounds))
 
+        matter_ref = timeline.matter_ref.model_copy(
+            update={"firm": resolve_matter_firm(version_events, settings.internal_domains, settings.firm_domains)}
+        )
         matter_metrics = MatterMetrics(
-            matter_ref=timeline.matter_ref,
+            matter_ref=matter_ref,
             version_events=version_events,
             metrics=metrics,
             clause_signals=clause_signals,
@@ -152,9 +170,40 @@ def run(config_path: str, raw_data_path: str, matter_overrides: list[str] | None
 
         written.extend(paths.values())
         written.append(markdown_path)
+        all_matter_metrics.append(matter_metrics)
         print(f"Wrote report for matter {timeline.matter_ref.workspace_id} to {output_dir}")
 
+    rollups = compute_counterparty_rollups(all_matter_metrics)
+    if rollups:
+        rollup_paths = write_all_rollups(rollups, output_dir)
+        written.extend(rollup_paths.values())
+        firms = ", ".join(r.firm for r in rollups)
+        print(f"Wrote counterparty rollup for {firms} to {output_dir}")
+
     return written
+
+
+def rollup(config_path: str, report_paths: list[str]) -> list[Path]:
+    """Compute a counterparty rollup across matters that were `run()` in
+    separate invocations (e.g. analyzed on different days). `run()` already
+    does this automatically for matters processed together in one call —
+    this is for combining reports generated separately.
+    """
+    settings = load_settings(config_path)
+    output_dir = Path(settings.output_dir)
+
+    all_matter_metrics = [
+        MatterMetrics.model_validate_json(Path(p).read_text(encoding="utf-8")) for p in report_paths
+    ]
+    rollups = compute_counterparty_rollups(all_matter_metrics)
+    if not rollups:
+        print("No firm has 2+ of the given matters with a resolvable firm — nothing to roll up.")
+        return []
+
+    rollup_paths = write_all_rollups(rollups, output_dir)
+    firms = ", ".join(r.firm for r in rollups)
+    print(f"Wrote counterparty rollup for {firms} to {output_dir}")
+    return list(rollup_paths.values())
 
 
 def packet(
@@ -230,6 +279,8 @@ def main(argv: list[str] | None = None) -> None:
         signoff(args.config, args.report, args.reviewer, args.decision, args.reason)
     elif args.command == "verify-signoffs":
         verify_signoffs(args.config)
+    elif args.command == "rollup":
+        rollup(args.config, args.reports)
 
 
 if __name__ == "__main__":

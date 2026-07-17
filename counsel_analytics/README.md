@@ -18,7 +18,7 @@ something) is a separate, ordinary accountability concern and never blurs
 into that guardrail — it's recorded in `signoffs.jsonl`, never in the
 analytics report/packet.
 
-## Status: Phase 1 + Phase 2 + Phase 3.5
+## Status: Phase 1 + Phase 2 + Phase 3 + Phase 3.5
 
 Implemented:
 - **Phase 1** — matter → document → version-timeline enumeration, text
@@ -29,14 +29,19 @@ Implemented:
   embedding-based semantic-similarity mode), correspondence ingestion via
   the Microsoft 365 MCP tools correlated to the version timeline, and
   thread-scoped tone/escalation scoring against a configurable lexicon.
+- **Phase 3** — cross-matter counterparty (firm) rollup: groups
+  already-computed matters by firm and trends each metric across the
+  relationship over time (`counsel-analytics rollup`, plus automatic
+  rollup at the end of `run` when 2+ matters processed together share a
+  firm).
 - **Phase 3.5** — a condensed review packet (`packet`) and an
   append-only, hash-chained sign-off audit log (`signoff`,
   `verify-signoffs`), independent of Phase 2/3.
 
-Deferred (see the plan doc for the full phase breakdown): cross-matter
-counterparty rollup (Phase 3), a compliance/regulatory-correspondence
-domain, an Outlook add-in, and standalone (non-session) scheduled runs
-(Phase 4).
+Deferred (see the plan doc for the full phase breakdown, and "Extending"
+below for why each of these is a deliberate stop, not an oversight): a
+compliance/regulatory-correspondence second domain, an Outlook add-in, and
+standalone (non-session) scheduled runs via `DirectMCPClient` (Phase 4).
 
 ## How data gets in: the MCP boundary
 
@@ -86,13 +91,23 @@ cp config/config.example.yaml config.yaml   # fill in real matter_ids, domains
 
 # Check the sign-off audit log's hash chain is intact.
 .venv/bin/counsel-analytics verify-signoffs --config config.yaml
+
+# Roll up 2+ already-run matters that share a firm (run() does this
+# automatically for matters processed together in one call; use this to
+# combine matters that were run() separately, e.g. analyzed on different days).
+.venv/bin/counsel-analytics rollup --config config.yaml \
+    --report ./data/output/LIB_1000.json --report ./data/output/LIB_3000.json
 ```
 
 `run` outputs land in `output_dir` (from `config.yaml`): a canonical JSON
 file, a Markdown report, and `version_events.csv` / `turnaround_rounds.csv`
-/ `clause_signals.csv` / `matter_metrics.csv` for BI tools. `--matter
-LIB!xxxx` can be repeated to override `matter_ids` from the config for a
-one-off run.
+/ `clause_signals.csv` / `matter_metrics.csv` for BI tools, plus
+`counterparty_rollups.json` / `firm_period_metrics.csv` /
+`counterparty_rollups.md` if 2+ matters processed in that call share a
+resolvable firm. `--matter LIB!xxxx` can be repeated to override
+`matter_ids` from the config for a one-off run. A matter's firm is
+resolved automatically from its counsel-side authors' email domains
+(`firm_domains`) — no separate config needed.
 
 `signoff` appends to `output_dir/signoffs.jsonl` (never mutates or
 deletes). `packet` looks up the latest sign-off for the matter and flags
@@ -130,8 +145,14 @@ live MCP calls or credentials needed.
 - `tone_lexicon_path` — override for `config/lexicons/escalation_terms.yaml`.
 - `packet.max_highlights` / `packet.min_abs_value` — how many non-flat
   metrics the review packet surfaces, and a coarse magnitude floor.
-- `output_dir` — where JSON/CSV/Markdown reports, the sign-off log, and
-  the local text cache are written.
+- `output_dir` — where JSON/CSV/Markdown reports, the sign-off log, the
+  counterparty rollup, and the local text cache are written.
+
+A firm needs 2+ matters with a resolvable firm before `metrics/aggregate.py`
+will roll it up at all (a single matter has nothing to trend against) —
+this and the trend-direction epsilon are fixed constants in
+`metrics/aggregate.py`, not config, since they're a coarse default rather
+than something a matter-specific config should tune.
 
 ## Extending
 
@@ -152,6 +173,3 @@ live MCP calls or credentials needed.
   `embeddings/provider.py` is a documented placeholder, not a real
   backend. Wire in a real embeddings provider there if this mode is
   needed before Phase 4.
-- **Cross-matter counterparty rollup (Phase 3):** `metrics/aggregate.py`
-  is not yet built — group `MatterMetrics` by firm (via `firm_domains`)
-  and compute firm-level metric series/slopes across the relationship.

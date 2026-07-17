@@ -92,3 +92,56 @@ def test_run_produces_clause_reargument_and_tone_sections(phase2_output_dir):
     assert len(payload["clause_signals"]) >= 1
     tone_metric_names = {m["name"] for m in payload["metrics"] if m["name"].startswith("tone_")}
     assert "tone_escalation_trend" in tone_metric_names
+
+
+def _merge_raw_data(a: dict, b: dict) -> dict:
+    return {key: {**a.get(key, {}), **b.get(key, {})} for key in set(a) | set(b)}
+
+
+@pytest.fixture()
+def two_matters_same_firm(tmp_path):
+    # one_matter.json (LIB!1000, Jan) and phase2_matter.json (LIB!3000, Feb)
+    # both use "Example Firm LLP" as the counsel domain, at different dates
+    # -- exactly what a counterparty rollup needs.
+    one_matter = json.loads((FIXTURES / "one_matter.json").read_text())
+    phase2_matter = json.loads((FIXTURES / "phase2_matter.json").read_text())
+    merged_raw = tmp_path / "merged_raw.json"
+    merged_raw.write_text(json.dumps(_merge_raw_data(one_matter, phase2_matter)), encoding="utf-8")
+
+    config_src = FIXTURES / "test_config.yaml"
+    config = tmp_path / "config.yaml"
+    out_dir = tmp_path / "output"
+    config_text = config_src.read_text().replace("./data/output", str(out_dir))
+    config_text = config_text.replace('matter_ids:\n  - "LIB!1000"', 'matter_ids:\n  - "LIB!1000"\n  - "LIB!3000"')
+    config.write_text(config_text, encoding="utf-8")
+
+    return config, out_dir, merged_raw
+
+
+def test_run_produces_counterparty_rollup_across_two_matters(two_matters_same_firm):
+    config, out_dir, merged_raw = two_matters_same_firm
+
+    written = cli.run(str(config), str(merged_raw), matter_overrides=None)
+
+    rollup_md = out_dir / "counterparty_rollups.md"
+    assert rollup_md in written
+    md_text = rollup_md.read_text(encoding="utf-8")
+    assert "## Example Firm LLP" in md_text
+    assert "LIB!1000" in md_text and "LIB!3000" in md_text
+    for term in _FORBIDDEN_TERMS:
+        assert term not in md_text.lower()
+
+    csv_text = (out_dir / "firm_period_metrics.csv").read_text(encoding="utf-8")
+    assert "Example Firm LLP" in csv_text
+    assert "_firm_trend" in csv_text
+
+
+def test_rollup_command_combines_separately_run_reports(two_matters_same_firm):
+    config, out_dir, merged_raw = two_matters_same_firm
+    cli.run(str(config), str(merged_raw), matter_overrides=None)
+
+    report_paths = [str(out_dir / "LIB_1000.json"), str(out_dir / "LIB_3000.json")]
+    written = cli.rollup(str(config), report_paths)
+
+    assert len(written) == 3  # json, csv, markdown
+    assert any(p.name == "counterparty_rollups.md" for p in written)
