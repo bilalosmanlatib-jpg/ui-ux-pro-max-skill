@@ -1,0 +1,61 @@
+{
+  "workspaces": {
+    "LIB!3000": {
+      "name": "Project Orion - Framework Agreement",
+      "custom1": "CLIENT002",
+      "custom2": "MAT3000"
+    }
+  },
+  "container_children": {
+    "LIB!3000|workspace": [
+      {
+        "documentId": "LIB!4001",
+        "name": "Framework Agreement.docx",
+        "type": "document"
+      }
+    ]
+  },
+  "document_versions": {
+    "LIB!4001": [
+      {"version": 1, "author": "jane.doe@ninetyone.com", "modifiedDate": "2026-02-02T09:00:00Z", "size": 12000, "comment": "First draft"},
+      {"version": 2, "author": "counsel@examplefirmllp.com", "modifiedDate": "2026-02-04T15:00:00Z", "size": 12100, "comment": "Redlined warranties"},
+      {"version": 3, "author": "jane.doe@ninetyone.com", "modifiedDate": "2026-02-05T10:00:00Z", "size": 12100, "comment": "Reviewed, no changes"},
+      {"version": 4, "author": "counsel@examplefirmllp.com", "modifiedDate": "2026-02-09T14:00:00Z", "size": 12200, "comment": "Broadened warranties again"},
+      {"version": 5, "author": "jane.doe@ninetyone.com", "modifiedDate": "2026-02-10T11:00:00Z", "size": 12200, "comment": "Reviewed, no changes"},
+      {"version": 6, "author": "counsel@examplefirmllp.com", "modifiedDate": "2026-02-12T16:00:00Z", "size": 12300, "comment": "Further broadened warranties"}
+    ]
+  },
+  "document_text": {
+    "LIB!4001.1": "1. Definitions\nAgreement means this framework agreement.\n\n2. Price\nThe price is fixed at 500.\n\n3. Warranties\nSeller warrants title to the assets.\n",
+    "LIB!4001.2": "1. Definitions\nAgreement means this framework agreement.\n\n2. Price\nThe price is fixed at 500.\n\n3. Warranties\nSeller warrants good title to the assets free of encumbrances.\n",
+    "LIB!4001.3": "1. Definitions\nAgreement means this framework agreement.\n\n2. Price\nThe price is fixed at 500.\n\n3. Warranties\nSeller warrants good title to the assets free of encumbrances.\n",
+    "LIB!4001.4": "1. Definitions\nAgreement means this framework agreement.\n\n2. Price\nThe price is fixed at 500.\n\n3. Warranties\nSeller warrants good and marketable title to the assets free of all encumbrances and liens whatsoever.\n",
+    "LIB!4001.5": "1. Definitions\nAgreement means this framework agreement.\n\n2. Price\nThe price is fixed at 500.\n\n3. Warranties\nSeller warrants good and marketable title to the assets free of all encumbrances and liens whatsoever.\n",
+    "LIB!4001.6": "1. Definitions\nAgreement means this framework agreement.\n\n2. Price\nThe price is fixed at 500.\n\n3. Warranties\nSeller warrants good, valid and marketable title to the assets, free and clear of all encumbrances, liens and third party rights whatsoever.\n"
+  },
+  "correspondence": {
+    "LIB!3000": [
+      {
+        "source": "outlook",
+        "from": "counsel@examplefirmllp.com",
+        "timestamp": "2026-02-04T15:30:00Z",
+        "subject": "RE: Framework Agreement - Warranties",
+        "body": "Please see our comments on the warranties clause attached."
+      },
+      {
+        "source": "outlook",
+        "from": "counsel@examplefirmllp.com",
+        "timestamp": "2026-02-09T14:30:00Z",
+        "subject": "RE: Framework Agreement - Warranties",
+        "body": "We must insist on broader warranty language. This position is unacceptable as currently drafted."
+      },
+      {
+        "source": "outlook",
+        "from": "counsel@examplefirmllp.com",
+        "timestamp": "2026-02-12T16:30:00Z",
+        "subject": "RE: Framework Agreement - Warranties",
+        "body": "We reserve our rights and must insist, as a matter of urgency, on the revised warranties language, without prejudice to our other rights."
+      }
+    ]
+  }
+}

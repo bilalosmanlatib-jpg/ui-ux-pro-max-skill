@@ -35,6 +35,8 @@ class MCPClient(Protocol):
 
     def download_document_text(self, document_id_versioned: str) -> str: ...
 
+    def get_correspondence_raw(self, matter_id: str) -> list[dict]: ...
+
 
 class SessionMCPClient:
     """Looks up pre-fetched MCP responses supplied by the orchestrating
@@ -50,6 +52,7 @@ class SessionMCPClient:
           "container_children": {"<container_id>|<container_type>": [<child>, ...]},
           "document_versions": {document_id: [<version>, ...]},
           "document_text": {document_id_versioned: "<extracted text>"},
+          "correspondence": {matter_id: [<raw email/chat message>, ...]},
         }
     """
 
@@ -58,6 +61,7 @@ class SessionMCPClient:
         self._container_children: dict[str, list[dict]] = raw_data.get("container_children", {})
         self._document_versions: dict[str, list[dict]] = raw_data.get("document_versions", {})
         self._document_text: dict[str, str] = raw_data.get("document_text", {})
+        self._correspondence: dict[str, list[dict]] = raw_data.get("correspondence", {})
 
     def get_workspace_profile(self, workspace_id: str) -> dict:
         try:
@@ -92,6 +96,12 @@ class SessionMCPClient:
                 "exhausted, concatenating chunks) and add it to "
                 "raw_data['document_text']."
             ) from exc
+
+    def get_correspondence_raw(self, matter_id: str) -> list[dict]:
+        # Empty is legitimate here (unlike the getters above): a matter may
+        # genuinely have no correspondence fetched, or none at all — that's
+        # not an error the pipeline needs to stop for.
+        return self._correspondence.get(matter_id, [])
 
 
 class DirectMCPClient:

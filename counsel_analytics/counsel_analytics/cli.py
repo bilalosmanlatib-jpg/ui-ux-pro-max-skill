@@ -1,11 +1,14 @@
-"""`counsel-analytics run` — the Phase 1 MVP entry point.
+"""`counsel-analytics` CLI: `run` (turnaround/volume/clause/tone analysis),
+`packet` (condensed review packet), `signoff` (record a decision),
+`verify-signoffs` (check the audit log's hash chain).
 
 This module never calls an MCP tool itself. In `mcp_client: session` mode
-(the only implemented mode), a Claude session with the iManage Work MCP
-tools connected fetches `get_workspace_profile` / `get_container_children`
-/ `get_document_versions` / `download_document` for the matters of
-interest, assembles them into the `SessionMCPClient` raw_data shape (see
-`mcp/client.py`), and writes that to a JSON file passed via `--raw-data`.
+(the only implemented mode), a Claude session with the iManage Work /
+Microsoft 365 MCP tools connected fetches `get_workspace_profile` /
+`get_container_children` / `get_document_versions` / `download_document` /
+correspondence for the matters of interest, assembles them into the
+`SessionMCPClient` raw_data shape (see `mcp/client.py`), and writes that to
+a JSON file passed via `--raw-data`.
 """
 
 from __future__ import annotations
@@ -16,15 +19,27 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from counsel_analytics.config import load_settings
+from counsel_analytics.diff.segment import align_clause_histories, segment_text
 from counsel_analytics.diff.textdiff import diff_versions
+from counsel_analytics.ingest.correspond import correlate_correspondence
 from counsel_analytics.ingest.enumerate import enumerate_all
 from counsel_analytics.ingest.extract import extract_version_text
 from counsel_analytics.mcp.client import build_client
+from counsel_analytics.metrics.reargument import compute_reargument_metrics
+from counsel_analytics.metrics.tone import compute_tone_metrics
 from counsel_analytics.metrics.turnaround import compute_turnaround_metrics
 from counsel_analytics.metrics.volume import compute_volume_metrics
 from counsel_analytics.models import MatterMetrics
 from counsel_analytics.report.datamodel import MatterReportBundle, matter_slug, write_all
 from counsel_analytics.report.generate import generate_markdown
+from counsel_analytics.report.packet import build_review_packet, render_packet_markdown
+from counsel_analytics.signoff import (
+    SignOffRecord,
+    append_signoff,
+    latest_signoff_for_matter,
+    snapshot_hash,
+    verify_chain,
+)
 from counsel_analytics.sources.redline import RedlineSourceAdapter
 
 
@@ -32,7 +47,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="counsel-analytics")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run_parser = subparsers.add_parser("run", help="Run the Phase 1 turnaround/volume analysis")
+    run_parser = subparsers.add_parser(
+        "run", help="Run the turnaround/volume/clause-reargument/tone analysis"
+    )
     run_parser.add_argument("--config", default="config.yaml", help="Path to config.yaml")
     run_parser.add_argument(
         "--raw-data",
@@ -45,6 +62,31 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="matters",
         help="Override matter_ids from config (repeatable)",
     )
+
+    packet_parser = subparsers.add_parser(
+        "packet", help="Render a ~5-minute review packet from a report JSON"
+    )
+    packet_parser.add_argument("--config", default="config.yaml", help="Path to config.yaml")
+    packet_parser.add_argument("--report", required=True, help="Path to a <slug>.json report written by `run`")
+    packet_parser.add_argument(
+        "--max-highlights", type=int, default=None, help="Override config packet.max_highlights"
+    )
+    packet_parser.add_argument("--out", default=None, help="Write packet markdown here (default: stdout)")
+
+    signoff_parser = subparsers.add_parser(
+        "signoff", help="Record an approve/flag/escalate decision against a report snapshot"
+    )
+    signoff_parser.add_argument("--config", default="config.yaml", help="Path to config.yaml")
+    signoff_parser.add_argument("--report", required=True, help="Path to the <slug>.json report being signed off")
+    signoff_parser.add_argument("--reviewer", required=True, help="Reviewer identity (email or id)")
+    signoff_parser.add_argument("--decision", required=True, choices=["approve", "flag", "escalate"])
+    signoff_parser.add_argument("--reason", required=True, help="Required justification")
+
+    verify_parser = subparsers.add_parser(
+        "verify-signoffs", help="Check the sign-off log's hash chain is intact"
+    )
+    verify_parser.add_argument("--config", default="config.yaml", help="Path to config.yaml")
+
     return parser
 
 
@@ -64,6 +106,7 @@ def run(config_path: str, raw_data_path: str, matter_overrides: list[str] | None
     for timeline in enumerate_all(source):
         version_events = []
         metrics = []
+        clause_signals = []
         rounds_by_document: dict[str, list] = {}
 
         for doc_timeline in timeline.documents:
@@ -81,15 +124,24 @@ def run(config_path: str, raw_data_path: str, matter_overrides: list[str] | None
             )
             volume_metrics = compute_volume_metrics(doc_timeline.document_ref, diffs)
 
+            segments_by_version = {v.version_no: segment_text(texts[v.version_no], v.version_no) for v in versions}
+            clause_histories = align_clause_histories(segments_by_version)
+            reargument_metrics = compute_reargument_metrics(doc_timeline.document_ref, clause_histories, settings)
+
             rounds_by_document[doc_timeline.document_ref.document_id] = rounds
             metrics.extend(turnaround_metrics)
             metrics.extend(volume_metrics)
+            clause_signals.extend(reargument_metrics)
+
+        raw_threads = source.get_correspondence(timeline.matter_ref, settings.correspondence_window_days)
+        correlated_threads, message_rounds = correlate_correspondence(raw_threads, version_events, settings)
+        metrics.extend(compute_tone_metrics(timeline.matter_ref, correlated_threads, settings, rounds=message_rounds))
 
         matter_metrics = MatterMetrics(
             matter_ref=timeline.matter_ref,
             version_events=version_events,
             metrics=metrics,
-            clause_signals=[],
+            clause_signals=clause_signals,
             generated_at=datetime.now(timezone.utc),
         )
         bundle = MatterReportBundle(matter_metrics=matter_metrics, rounds_by_document=rounds_by_document)
@@ -105,11 +157,79 @@ def run(config_path: str, raw_data_path: str, matter_overrides: list[str] | None
     return written
 
 
+def packet(
+    config_path: str,
+    report_path: str,
+    max_highlights: int | None = None,
+    out_path: str | None = None,
+) -> str:
+    settings = load_settings(config_path)
+    matter_metrics = MatterMetrics.model_validate_json(Path(report_path).read_text(encoding="utf-8"))
+
+    log_path = Path(settings.output_dir) / "signoffs.jsonl"
+    prior = latest_signoff_for_matter(log_path, matter_metrics.matter_ref.workspace_id)
+
+    review_packet = build_review_packet(
+        matter_metrics,
+        max_highlights=max_highlights if max_highlights is not None else settings.packet.max_highlights,
+        min_abs_value=settings.packet.min_abs_value,
+        prior_signoff=prior,
+    )
+    markdown = render_packet_markdown(review_packet)
+
+    if out_path:
+        Path(out_path).write_text(markdown, encoding="utf-8")
+    else:
+        print(markdown)
+    return markdown
+
+
+def signoff(
+    config_path: str, report_path: str, reviewer: str, decision: str, reason: str
+) -> SignOffRecord:
+    if not reason.strip():
+        raise ValueError("--reason is required and must be non-empty")
+
+    settings = load_settings(config_path)
+    matter_metrics = MatterMetrics.model_validate_json(Path(report_path).read_text(encoding="utf-8"))
+
+    record = SignOffRecord(
+        matter_workspace_id=matter_metrics.matter_ref.workspace_id,
+        snapshot_hash=snapshot_hash(matter_metrics),
+        decision=decision,
+        reviewer=reviewer,
+        reviewer_source="cli_flag",
+        reason=reason,
+        signed_at=datetime.now(timezone.utc),
+    )
+    log_path = Path(settings.output_dir) / "signoffs.jsonl"
+    finalized = append_signoff(record, log_path)
+    print(f"Recorded {decision} sign-off for {matter_metrics.matter_ref.workspace_id} by {reviewer}")
+    return finalized
+
+
+def verify_signoffs(config_path: str) -> tuple[bool, int | None]:
+    settings = load_settings(config_path)
+    log_path = Path(settings.output_dir) / "signoffs.jsonl"
+    intact, bad_index = verify_chain(log_path)
+    if intact:
+        print(f"Sign-off log intact: {log_path}")
+    else:
+        print(f"Sign-off log TAMPERED at line {bad_index}: {log_path}")
+    return intact, bad_index
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = _build_parser()
     args = parser.parse_args(argv)
     if args.command == "run":
         run(args.config, args.raw_data, args.matters)
+    elif args.command == "packet":
+        packet(args.config, args.report, args.max_highlights, args.out)
+    elif args.command == "signoff":
+        signoff(args.config, args.report, args.reviewer, args.decision, args.reason)
+    elif args.command == "verify-signoffs":
+        verify_signoffs(args.config)
 
 
 if __name__ == "__main__":

@@ -1,10 +1,11 @@
 """MVP source adapter: a private-markets matter's documents and their
-version history in iManage Work.
+version history in iManage Work, plus (Phase 2) its correspondence via
+the M365 MCP tools.
 
-`get_correspondence` returns `[]` in Phase 1 — correlating email/chat to
-version events lands in Phase 2 (`ingest/correspond.py`) via the M365 MCP
-tools. Leaving the method present (returning empty) keeps the
-`SourceAdapter` protocol satisfied without a signature change later.
+`get_correspondence` is a thin translation boundary — it hands back
+`CommentThread`s from whatever raw correspondence the session fetched;
+correlating those to version-event time windows happens downstream in
+`ingest/correspond.py`, not here.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from typing import Any
 from counsel_analytics.config import Settings
 from counsel_analytics.mcp.client import MCPClient
 from counsel_analytics.mcp.imanage import parse_version_events
+from counsel_analytics.mcp.m365 import parse_comment_threads
 from counsel_analytics.models import CommentThread, DocumentRef, MatterRef, VersionEvent
 
 _DOC_ID_KEYS = ("documentId", "document_id", "id")
@@ -82,4 +84,10 @@ class RedlineSourceAdapter:
         return self._client.download_document_text(version_event.document_id_versioned)
 
     def get_correspondence(self, matter_ref: MatterRef, window_days: int) -> list[CommentThread]:
-        return []
+        raw = self._client.get_correspondence_raw(matter_ref.workspace_id)
+        return parse_comment_threads(
+            matter_ref.workspace_id,
+            raw,
+            self._settings.internal_domains,
+            self._settings.firm_domains,
+        )

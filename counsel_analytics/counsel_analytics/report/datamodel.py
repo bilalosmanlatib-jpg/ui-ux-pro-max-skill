@@ -1,10 +1,8 @@
 """JSON + flat CSV output for a matter's metrics.
 
 CSVs are for BI tools; the JSON is the canonical, fully-evidenced record.
-Only the Phase 1 outputs (version events, turnaround rounds, matter
-metrics) are implemented — `clause_signals.csv` and
-`firm_period_metrics.csv` land with Phase 2/3 once there's real data to
-put in them.
+`firm_period_metrics.csv` lands with Phase 3 (counterparty rollup) once
+there's real data to put in it.
 """
 
 from __future__ import annotations
@@ -114,10 +112,32 @@ def write_matter_metrics_csv(bundle: MatterReportBundle, output_dir: Path) -> Pa
     return path
 
 
+def write_clause_signals_csv(bundle: MatterReportBundle, output_dir: Path) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / "clause_signals.csv"
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["document_id", "clause_id", "metric_name", "value", "unit", "direction", "note"])
+        for metric in bundle.matter_metrics.clause_signals:
+            writer.writerow(
+                [
+                    metric.evidence.doc_ids[0] if metric.evidence.doc_ids else "",
+                    metric.evidence.clause_ids[0] if metric.evidence.clause_ids else "",
+                    metric.name,
+                    metric.value,
+                    metric.unit,
+                    metric.direction,
+                    metric.note or "",
+                ]
+            )
+    return path
+
+
 def write_all(bundle: MatterReportBundle, output_dir: Path, anonymize_authors: bool) -> dict[str, Path]:
     return {
         "json": write_json(bundle, output_dir, anonymize_authors),
         "version_events_csv": write_version_events_csv(bundle, output_dir, anonymize_authors),
         "turnaround_rounds_csv": write_turnaround_rounds_csv(bundle, output_dir),
         "matter_metrics_csv": write_matter_metrics_csv(bundle, output_dir),
+        "clause_signals_csv": write_clause_signals_csv(bundle, output_dir),
     }

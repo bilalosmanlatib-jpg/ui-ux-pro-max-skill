@@ -1,0 +1,29 @@
+# Weighted phrase lexicon for aggregate, thread-scoped tone/escalation
+# scoring (metrics/tone.py). Never used to characterize a named individual
+# — every score is a matter/thread-level aggregate.
+#
+# score = occurrences * phrase.weight * category.weight, summed per
+# message and aggregated per round.
+version: 1
+categories:
+  escalation:
+    weight: 1.0
+    phrases:
+      - {phrase: "we must insist", weight: 3.0}
+      - {phrase: "reserve our rights", weight: 3.0}
+      - {phrase: "unacceptable", weight: 3.0}
+      - {phrase: "as previously stated", weight: 2.0}
+      - {phrase: "without prejudice", weight: 1.5}
+      - {phrase: "formal notice", weight: 2.0}
+  urgency:
+    weight: 1.0
+    phrases:
+      - {phrase: "time is of the essence", weight: 2.0}
+      - {phrase: "as a matter of urgency", weight: 2.0}
+      - {phrase: "by close of business", weight: 1.5}
+      - {phrase: "immediate attention", weight: 1.5}
+  formality:
+    weight: 0.5
+    phrases:
+      - {phrase: "please be advised", weight: 1.0}
+      - {phrase: "pursuant to", weight: 0.5}

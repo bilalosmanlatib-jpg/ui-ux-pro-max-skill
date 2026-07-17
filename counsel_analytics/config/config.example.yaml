@@ -43,3 +43,12 @@ embedding_provider: none
 anonymize_authors: false
 
 output_dir: "./data/output"
+
+# Review packet (the ~5-minute-read artifact, `counsel-analytics packet`).
+packet:
+  max_highlights: 8
+  min_abs_value: 0.0
+
+# Escalation-lexicon path for tone scoring. Unset -> packaged default at
+# config/lexicons/escalation_terms.yaml.
+tone_lexicon_path: null

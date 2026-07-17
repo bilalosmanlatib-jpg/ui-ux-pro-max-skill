@@ -15,6 +15,8 @@ from counsel_analytics.report.datamodel import MatterReportBundle
 
 _TURNAROUND_PREFIX = "counsel_turnaround"
 _VOLUME_PREFIX = "redline_density"
+_REARGUMENT_PREFIX = "clause_reargument"
+_TONE_PREFIX = "tone_"
 
 _GUARDRAIL_NOTE = (
     "All metrics in this report are aggregated at the document/matter level. "
@@ -76,6 +78,25 @@ def generate_markdown(bundle: MatterReportBundle) -> str:
     for doc_id, metrics in volume_by_doc.items():
         lines.append(f"### {doc_id}")
         lines.extend(_metrics_table(metrics))
+        lines.append("")
+
+    lines.extend(["", "## Clause Re-argument", ""])
+    reargument_by_doc = _metrics_by_document(bundle.matter_metrics.clause_signals)
+    if not reargument_by_doc:
+        lines.append("_No clauses re-argued across the configured round threshold._")
+    for doc_id, metrics in reargument_by_doc.items():
+        lines.append(f"### {doc_id}")
+        lines.extend(_metrics_table(metrics))
+        lines.append("")
+
+    lines.extend(["", "## Tone / Escalation", ""])
+    tone_metrics = [m for m in bundle.matter_metrics.metrics if m.name.startswith(_TONE_PREFIX)]
+    if not tone_metrics:
+        lines.append("_No correspondence available for tone analysis._")
+    else:
+        # Matter-scoped (doc_ids=[]) — rendered as one flat table, not grouped
+        # per-document like turnaround/volume/reargument above.
+        lines.extend(_metrics_table(tone_metrics))
         lines.append("")
 
     lines.extend(["", "## Guardrails", "", _GUARDRAIL_NOTE, ""])
