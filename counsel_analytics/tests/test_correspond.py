@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 
 from counsel_analytics.config import Settings
 from counsel_analytics.ingest.correspond import correlate_correspondence

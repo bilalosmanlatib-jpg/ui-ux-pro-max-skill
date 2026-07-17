@@ -1,5 +1,10 @@
+import logging
+
+import pytest
+
 from counsel_analytics.config import Settings
 from counsel_analytics.diff.segment import align_clause_histories, segment_text
+from counsel_analytics.metrics import reargument as reargument_module
 from counsel_analytics.metrics.reargument import compute_reargument_metrics
 from counsel_analytics.models import ClauseHistory, ClauseHistoryEntry, ClauseSegment, DocumentRef
 
@@ -129,6 +134,32 @@ def test_embedding_mode_does_not_flag_cosmetic_reopened_clause():
 
     metrics = compute_reargument_metrics(DOC, [history], settings, provider=provider)
     assert metrics == []
+
+
+@pytest.mark.parametrize("build_error", [ImportError("no sentence_transformers"), NotImplementedError("no backend")])
+def test_embedding_provider_build_failure_falls_back_to_pingpong_with_warning(monkeypatch, caplog, build_error):
+    histories = _clause_histories()
+    settings = _settings(embedding_provider="local")
+    settings.thresholds.reargument_ping_pong_rounds = 2
+
+    def _raise(_settings):
+        raise build_error
+
+    monkeypatch.setattr(reargument_module, "build_embedding_provider", _raise)
+
+    with caplog.at_level(logging.WARNING, logger=reargument_module.__name__):
+        metrics = compute_reargument_metrics(DOC, histories, settings)
+
+    # Falls back to the ping-pong heuristic rather than raising or silently
+    # returning nothing.
+    flagged_names = {m.evidence.clause_ids[0] for m in metrics}
+    assert "3" in flagged_names
+    assert all(m.name == "clause_reargument_pingpong" for m in metrics)
+
+    assert len(caplog.records) == 1
+    assert caplog.records[0].levelno == logging.WARNING
+    assert "local" in caplog.records[0].message
+    assert "ping-pong" in caplog.records[0].message
 
 
 def test_embedding_mode_no_settle_reopen_pattern_returns_empty():

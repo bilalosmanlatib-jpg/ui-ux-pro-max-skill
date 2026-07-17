@@ -13,11 +13,15 @@ Both modes keep the same epistemic-humility framing as `metrics/volume.py`.
 
 from __future__ import annotations
 
+import logging
+
 from counsel_analytics.config import Settings
 from counsel_analytics.embeddings.provider import EmbeddingProvider, build_embedding_provider, cosine_similarity
 from counsel_analytics.models import ClauseHistory, ClauseHistoryEntry, DocumentRef, Evidence, Metric
 
 _QUOTE_MAX_CHARS = 200
+
+_logger = logging.getLogger(__name__)
 
 
 def _clause_title(history: ClauseHistory) -> str:
@@ -122,7 +126,13 @@ def compute_reargument_metrics(
     if resolved_provider is None and settings.embedding_provider != "none":
         try:
             resolved_provider = build_embedding_provider(settings)
-        except (ImportError, NotImplementedError):
+        except (ImportError, NotImplementedError) as exc:
+            _logger.warning(
+                "embedding_provider %r unavailable (%s); falling back to the "
+                "ping-pong heuristic for clause re-argument detection",
+                settings.embedding_provider,
+                exc,
+            )
             resolved_provider = None
 
     metrics = []

@@ -83,7 +83,7 @@ class RedlineSourceAdapter:
     def get_text(self, version_event: VersionEvent) -> str:
         return self._client.download_document_text(version_event.document_id_versioned)
 
-    def get_correspondence(self, matter_ref: MatterRef, window_days: int) -> list[CommentThread]:
+    def get_correspondence(self, matter_ref: MatterRef) -> list[CommentThread]:
         raw = self._client.get_correspondence_raw(matter_ref.workspace_id)
         return parse_comment_threads(
             matter_ref.workspace_id,
