@@ -1,0 +1,46 @@
+{
+  "workspaces": {
+    "LIB!5000": {
+      "name": "FCA Inquiry - Client Data Handling",
+      "custom1": "CLIENT003",
+      "custom2": "CASE5000"
+    }
+  },
+  "container_children": {
+    "LIB!5000|workspace": []
+  },
+  "document_versions": {},
+  "document_text": {},
+  "correspondence": {
+    "LIB!5000": [
+      {
+        "source": "outlook",
+        "from": "supervisor@fca.org.uk",
+        "timestamp": "2026-03-02T09:00:00Z",
+        "subject": "Data Handling Inquiry - Initial Request",
+        "body": "Please provide the requested records within 14 days."
+      },
+      {
+        "source": "outlook",
+        "from": "jane.doe@ninetyone.com",
+        "timestamp": "2026-03-05T09:00:00Z",
+        "subject": "RE: Data Handling Inquiry - Initial Request",
+        "body": "Please see attached records as requested."
+      },
+      {
+        "source": "outlook",
+        "from": "supervisor@fca.org.uk",
+        "timestamp": "2026-03-20T09:00:00Z",
+        "subject": "RE: Data Handling Inquiry - Follow-up",
+        "body": "We must insist on a fuller response. The information provided so far is unacceptable."
+      },
+      {
+        "source": "outlook",
+        "from": "supervisor@fca.org.uk",
+        "timestamp": "2026-04-02T09:00:00Z",
+        "subject": "RE: Data Handling Inquiry - Formal Notice",
+        "body": "This is a formal notice. We reserve our rights and require a response as a matter of urgency."
+      }
+    ]
+  }
+}

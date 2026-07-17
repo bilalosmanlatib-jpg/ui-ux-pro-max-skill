@@ -5,6 +5,14 @@ negotiation timeline: a message survives only if it falls within
 `correspondence_window_days` of at least one version event; everything
 else is out-of-scope chatter and is dropped. Each surviving message is
 assigned to its nearest version event's round for per-round tone scoring.
+
+A matter with correspondence but no document version events at all (the
+compliance/correspondence-only domain — see `sources/compliance.py` — has
+no documents to diff, ever) is a different case from "no message fell in
+any window": there's no version timeline to correlate against, not a
+timeline every message happened to miss. Everything passes through
+unfiltered in that case, and `metrics/tone.py`'s own chronological-index
+fallback (used whenever no round mapping is supplied) assigns rounds.
 """
 
 from __future__ import annotations
@@ -25,8 +33,13 @@ def correlate_correspondence(
     events sorted by timestamp) of the nearest version event. Callers must
     hold onto the same `Message` objects returned here to look up rounds.
     """
-    if not version_events or not threads:
+    if not threads:
         return [], {}
+    if not version_events:
+        # No document timeline to correlate against at all (e.g. the
+        # compliance domain, which has no documents by design) — pass
+        # everything through rather than treating it as "out of window."
+        return threads, {}
 
     window = timedelta(days=settings.correspondence_window_days)
     sorted_versions = sorted(version_events, key=lambda v: v.timestamp)

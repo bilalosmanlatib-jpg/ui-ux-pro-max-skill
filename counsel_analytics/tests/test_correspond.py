@@ -54,10 +54,15 @@ def test_correlate_correspondence_assigns_nearest_round():
     assert rounds[id(near_v2)] == 1  # nearest to VERSIONS[1] (v2)
 
 
-def test_correlate_correspondence_empty_version_events_returns_empty():
-    thread = CommentThread(matter_id="LIB!3000", source="outlook", messages=[_message("2026-02-01T09:00:00+00:00")])
+def test_correlate_correspondence_no_version_events_passes_everything_through():
+    # No document timeline at all (e.g. the compliance domain, which never
+    # has documents) is not the same as "every message missed every
+    # window" -- there's no window to miss, so nothing should be dropped.
+    message = _message("2026-02-01T09:00:00+00:00")
+    thread = CommentThread(matter_id="LIB!3000", source="outlook", messages=[message])
     filtered, rounds = correlate_correspondence([thread], [], _settings())
-    assert filtered == []
+    assert len(filtered) == 1
+    assert filtered[0].messages == [message]
     assert rounds == {}
 
 

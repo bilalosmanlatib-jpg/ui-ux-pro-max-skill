@@ -21,6 +21,7 @@ class PacketSettings(BaseModel):
 
 class Settings(BaseModel):
     matter_ids: list[str]
+    domain: Literal["redline", "compliance"] = "redline"
     mcp_client: Literal["session", "direct"] = "session"
     internal_domains: list[str] = Field(default_factory=list)
     firm_domains: dict[str, str] = Field(default_factory=dict)

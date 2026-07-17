@@ -145,8 +145,8 @@ def compute_tone_metrics(
             direction=_direction(escalation_slope, _ESCALATION_TREND_EPSILON),
             evidence=evidence,
             note=(
-                "Rising escalation-lexicon density may reflect hardening negotiating posture "
-                f"or routine deal cadence. {_HYPOTHESIS_NOTE_SUFFIX}"
+                "Rising escalation-lexicon density may reflect a hardening posture in this "
+                f"correspondence thread, or routine variation in cadence. {_HYPOTHESIS_NOTE_SUFFIX}"
             ),
         ),
         Metric(

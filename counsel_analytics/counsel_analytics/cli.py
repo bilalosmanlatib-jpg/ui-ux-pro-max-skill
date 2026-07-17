@@ -42,6 +42,7 @@ from counsel_analytics.signoff import (
     snapshot_hash,
     verify_chain,
 )
+from counsel_analytics.sources.compliance import ComplianceSourceAdapter
 from counsel_analytics.sources.redline import RedlineSourceAdapter
 
 
@@ -111,7 +112,7 @@ def run(config_path: str, raw_data_path: str, matter_overrides: list[str] | None
 
     raw_data = json.loads(Path(raw_data_path).read_text(encoding="utf-8"))
     client = build_client(settings.mcp_client, raw_data)
-    source = RedlineSourceAdapter(client, settings)
+    source = ComplianceSourceAdapter(client, settings) if settings.domain == "compliance" else RedlineSourceAdapter(client, settings)
 
     output_dir = Path(settings.output_dir)
     cache_dir = output_dir / "_text_cache"

@@ -37,11 +37,17 @@ Implemented:
 - **Phase 3.5** — a condensed review packet (`packet`) and an
   append-only, hash-chained sign-off audit log (`signoff`,
   `verify-signoffs`), independent of Phase 2/3.
+- **Compliance domain (Phase 4, partial)** — a second, correspondence-only
+  domain (`domain: compliance` in config) for regulatory-inquiry
+  trend-spotting: no documents, tone/escalation scoring only. Proves the
+  `sources/` boundary claim for real — `sources/compliance.py` plus one
+  bug fix in `ingest/correspond.py` (see below) was the entire cost;
+  `ingest/diff/metrics/report` didn't change at all.
 
-Deferred (see the plan doc for the full phase breakdown, and "Extending"
-below for why each of these is a deliberate stop, not an oversight): a
-compliance/regulatory-correspondence second domain, an Outlook add-in, and
-standalone (non-session) scheduled runs via `DirectMCPClient` (Phase 4).
+Still deferred (see the plan doc for the full phase breakdown, and
+"Extending" below for why each is a deliberate stop, not an oversight): an
+Outlook add-in, and standalone (non-session) scheduled runs via
+`DirectMCPClient` (both Phase 4).
 
 ## How data gets in: the MCP boundary
 
@@ -156,14 +162,16 @@ than something a matter-specific config should tune.
 
 ## Extending
 
-- **A second domain (compliance/regulatory correspondence):** implement
-  `sources/compliance.py` against the `SourceAdapter` protocol in
-  `sources/base.py`. `ingest/diff/metrics/report` never reference iManage
-  or a specific domain directly, so they don't change — and neither does
-  `report/packet.py`/`signoff.py`, since those only ever touch the generic
-  `MatterMetrics`/`Metric` types.
+- **A third domain:** implement a new `SourceAdapter` (see
+  `sources/base.py`; `sources/compliance.py` is a small, fully-built
+  worked example — correspondence-only, no documents). `ingest/diff/
+  metrics/report` never reference iManage or a specific domain directly,
+  so they don't change — and neither does `report/packet.py`/`signoff.py`,
+  since those only ever touch the generic `MatterMetrics`/`Metric` types.
 - **An Outlook add-in:** wrap this engine with a new transport; the engine
-  itself has no UI/transport assumptions baked in.
+  itself has no UI/transport assumptions baked in. Genuinely out of scope
+  for this Python module — a real add-in is JS/TypeScript + an Office.js
+  manifest, a different tech stack entirely, not a Python change.
 - **Richer redline (Word tracked-changes, not just text diff):** blocked
   today because `download_document` returns extracted text, not raw docx
   bytes. If a raw-bytes download path becomes available, add

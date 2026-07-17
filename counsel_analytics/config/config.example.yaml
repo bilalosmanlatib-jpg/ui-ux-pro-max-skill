@@ -4,6 +4,13 @@
 matter_ids:
   - "LIB!12345"
 
+# "redline" (default): external-counsel document review — turnaround,
+# redline volume, clause re-argument, plus correspondence/tone.
+# "compliance": correspondence-only regulatory matters — no documents,
+# tone/escalation trend-spotting only. Point firm_domains at the
+# regulator's domain(s) instead of a law firm's in this mode.
+domain: redline
+
 # Which MCP client implementation to use: "session" (data handed in by the
 # orchestrating Claude session) or "direct" (module runs as its own MCP
 # client with org OAuth — Phase 4, standalone/scheduled runs).
