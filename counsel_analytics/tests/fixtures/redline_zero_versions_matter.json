@@ -1,0 +1,33 @@
+{
+  "workspaces": {
+    "LIB!5000": {
+      "name": "Project Kestrel - Loan Agreement",
+      "custom1": "CLIENT003",
+      "custom2": "MAT5000"
+    }
+  },
+  "container_children": {
+    "LIB!5000|workspace": [
+      {
+        "documentId": "LIB!6001",
+        "name": "Loan Agreement.docx",
+        "type": "document"
+      }
+    ]
+  },
+  "document_versions": {
+    "LIB!6001": []
+  },
+  "document_text": {},
+  "correspondence": {
+    "LIB!5000": [
+      {
+        "source": "outlook",
+        "from": "counsel@examplefirmllp.com",
+        "timestamp": "2026-03-02T09:00:00Z",
+        "subject": "RE: Loan Agreement",
+        "body": "Circulating our comments shortly."
+      }
+    ]
+  }
+}

@@ -156,7 +156,7 @@ def run(config_path: str, raw_data_path: str, matter_overrides: list[str] | None
 
         raw_threads = source.get_correspondence(timeline.matter_ref)
         correlated_threads, message_rounds = correlate_correspondence(
-            raw_threads, version_events, settings, has_documents=bool(timeline.documents)
+            raw_threads, version_events, settings, has_documents=timeline.has_documents
         )
         metrics.extend(compute_tone_metrics(timeline.matter_ref, correlated_threads, settings, rounds=message_rounds))
 

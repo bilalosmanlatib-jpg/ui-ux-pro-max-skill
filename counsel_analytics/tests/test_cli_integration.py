@@ -94,6 +94,38 @@ def test_run_produces_clause_reargument_and_tone_sections(phase2_output_dir):
     assert "tone_escalation_trend" in tone_metric_names
 
 
+@pytest.fixture()
+def zero_versions_output_dir(tmp_path):
+    config_src = FIXTURES / "redline_zero_versions_config.yaml"
+    config = tmp_path / "config.yaml"
+    out_dir = tmp_path / "output"
+    config.write_text(
+        config_src.read_text().replace("./data/output", str(out_dir)), encoding="utf-8"
+    )
+    return config, out_dir
+
+
+def test_run_warns_when_redline_document_enumerates_zero_versions(zero_versions_output_dir, caplog):
+    # Regression test for the has_documents wiring bug: a redline-domain
+    # matter with 1+ documents (list_documents non-empty) whose every
+    # document enumerates zero version events (get_versions() -> []) must
+    # still trigger ingest/correspond.py's "documents but no version
+    # events" warning when driven through cli.run() end-to-end, not just
+    # when correlate_correspondence() is called directly with
+    # has_documents=True.
+    config, out_dir = zero_versions_output_dir
+    raw_data_path = FIXTURES / "redline_zero_versions_matter.json"
+
+    with caplog.at_level("WARNING"):
+        written = cli.run(str(config), str(raw_data_path), matter_overrides=None)
+
+    assert written, "expected at least one output file"
+    warning_messages = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert any("has documents but no version events" in m for m in warning_messages), (
+        f"expected the correspond.py data-quality warning to fire; got: {warning_messages}"
+    )
+
+
 def _merge_raw_data(a: dict, b: dict) -> dict:
     return {key: {**a.get(key, {}), **b.get(key, {})} for key in set(a) | set(b)}
 

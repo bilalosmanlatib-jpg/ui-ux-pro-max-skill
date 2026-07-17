@@ -40,9 +40,12 @@ Implemented:
 - **Compliance domain (Phase 4, partial)** — a second, correspondence-only
   domain (`domain: compliance` in config) for regulatory-inquiry
   trend-spotting: no documents, tone/escalation scoring only. Proves the
-  `sources/` boundary claim for real — `sources/compliance.py` plus one
-  bug fix in `ingest/correspond.py` (see below) was the entire cost;
-  `ingest/diff/metrics/report` didn't change at all.
+  `sources/` boundary claim for real — `sources/compliance.py` plus a fix
+  in `ingest/correspond.py` (a `has_documents` flag so a domain with no
+  documents by design, like this one, doesn't get the same "documents but
+  no version events" warning as a redline matter whose documents produced
+  zero version events) was the entire cost; `ingest/diff/metrics/report`
+  didn't change at all.
 
 Still deferred (see the plan doc for the full phase breakdown, and
 "Extending" below for why each is a deliberate stop, not an oversight): an
@@ -131,6 +134,11 @@ live MCP calls or credentials needed.
 
 ## Config notes (`config.yaml`)
 
+- `domain` — `redline` (default) or `compliance`. Selects the `SourceAdapter`
+  (see "How data gets in" and "Extending" below): `redline` enumerates
+  documents/versions and diffs them in addition to correspondence;
+  `compliance` is correspondence-only (no documents, tone/escalation
+  scoring only).
 - `internal_domains` / `firm_domains` — how author/sender email domains
   are classified into `internal` / `counsel` (and which firm), for
   turnaround hand-off detection and tone's side-level bucketing. Unmatched
