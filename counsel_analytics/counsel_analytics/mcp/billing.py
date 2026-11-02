@@ -22,6 +22,7 @@ from counsel_analytics.models import TimeEntry
 _NAME_KEYS = ("timekeeper", "timekeeper_name", "fee_earner", "author", "name")
 _ROLE_KEYS = ("role", "timekeeper_role", "position", "title")
 _DATE_KEYS = ("date", "entry_date", "work_date", "service_date")
+_PERIOD_START_KEYS = ("period_start", "service_period_start", "from_date")
 _HOURS_KEYS = ("hours", "time", "duration_hours", "hours_billed")
 _RATE_KEYS = ("rate", "hourly_rate")
 _AMOUNT_KEYS = ("amount", "total", "line_amount", "value")
@@ -61,6 +62,7 @@ def parse_time_entries(
         hours = _first(raw, _HOURS_KEYS)
         if not name or hours is None:
             continue
+        period_start_raw = _first(raw, _PERIOD_START_KEYS)
         entries.append(
             TimeEntry(
                 matter_id=matter_id,
@@ -68,6 +70,7 @@ def parse_time_entries(
                 timekeeper_name=str(name),
                 timekeeper_role=_first(raw, _ROLE_KEYS),
                 entry_date=_parse_timestamp(_first(raw, _DATE_KEYS)),
+                period_start=_parse_timestamp(period_start_raw) if period_start_raw else None,
                 hours=float(hours),
                 rate=_first(raw, _RATE_KEYS),
                 amount=_first(raw, _AMOUNT_KEYS),

@@ -26,6 +26,12 @@ Three independent check families:
   proxy, not a fact: a date with no matching correspondence may simply mean
   the work happened by phone, in person, or in a system this pipeline
   doesn't see (internal firm research, drafting with nothing sent that day).
+  Matching is normally a `window_days`-wide band around a daily entry's
+  date; a period-level summary line (`TimeEntry.period_start` set, e.g. a
+  fee-earner total on an invoice with no day-by-day breakdown) instead
+  matches anything inside the billed period itself, since a tight window
+  around the period's end date would miss most of the period and an
+  arbitrarily wide one would just as wrongly reach past it.
 - **Calls** (`settings.billing.call_analysis`, off by default) — attendance
   (`CallRecord.attendees`) is a hard calendar fact; whether that attendance
   produced anything is not. Two modes, picked per call by what data exists
@@ -38,8 +44,14 @@ Three independent check families:
   possible when a transcript was actually fetched for that call (most
   won't have one), and a genuine step up in sensitivity over everything
   else here: it looks at what was said, not just whether work exists
-  around the call. See the README for why this one is opt-in and off by
-  default.
+  around the call. `call_no_output`/`call_no_contribution` are evaluated
+  against correspondence near *the call's own date* (`window_days`),
+  independent of whatever window matched the entry itself — a period-level
+  entry otherwise accumulates so much correspondence across its whole
+  period that "any output anywhere in the period" would almost never be
+  zero, which would silently defeat the check for the one invoice shape
+  (fee-earner summary lines) most likely to need it. See the README for
+  why this is opt-in and off by default.
 
 Every flag is a candidate for manual invoice review, never a verdict.
 """
@@ -52,11 +64,35 @@ from counsel_analytics.models import BillingSignal, CallRecord, CommentThread, E
 _NARRATIVE_MAX_CHARS = 200
 
 
+def _within_entry_window(entry: TimeEntry, when, window_days: int) -> bool:
+    """A single day's entry matches anything within `window_days` of it, as
+    before. A period-level entry (`period_start` set -- a summary line with
+    no day-by-day breakdown) instead matches anything *inside the billed
+    period itself*: a tight day-window around the period's end date would
+    miss activity from everywhere else in the period, and widening the
+    window arbitrarily would just as wrongly start pulling in activity from
+    well outside it."""
+    when_date = when.date()
+    if entry.period_start is not None:
+        return entry.period_start.date() <= when_date <= entry.entry_date.date()
+    return abs((when_date - entry.entry_date.date()).days) <= window_days
+
+
+def _window_phrase(entry: TimeEntry, window_days: int) -> str:
+    """Human-readable description of the matching window used in a
+    signal's note, so the note doesn't misleadingly cite a tight
+    `window_days` figure when a period-level entry actually matched
+    against its whole billed period instead."""
+    if entry.period_start is not None:
+        return f"its billed period ({entry.period_start.date()} to {entry.entry_date.date()})"
+    return f"{window_days} day(s) of that date"
+
+
 def _matching_messages(entry: TimeEntry, comment_threads: list[CommentThread], window_days: int):
     matches = []
     for thread in comment_threads:
         for message in thread.messages:
-            if abs((message.timestamp.date() - entry.entry_date.date()).days) <= window_days:
+            if _within_entry_window(entry, message.timestamp, window_days):
                 matches.append(message)
     return matches
 
@@ -79,7 +115,7 @@ def _matching_calls(
 ) -> list[tuple[CallRecord, str]]:
     matches = []
     for call in call_records:
-        if abs((call.start.date() - entry.entry_date.date()).days) > window_days:
+        if not _within_entry_window(entry, call.start, window_days):
             continue
         identity = next((a for a in call.attendees if _name_matches_identity(entry.timekeeper_name, a)), None)
         if identity:
@@ -144,7 +180,7 @@ def compute_billing_signals(
                     note=(
                         f"{entry.hours:.2f}h billed on {entry.entry_date.date()} "
                         f"(\"{narrative}\") has no matching correspondence in this system within "
-                        f"{settings_billing.window_days} day(s) of that date. May reflect work this "
+                        f"{_window_phrase(entry, settings_billing.window_days)}. May reflect work this "
                         "pipeline can't see (calls, in-person meetings, internal drafting/research "
                         "with nothing sent) — flagged for manual invoice review, not a finding of "
                         "overbilling."
@@ -167,7 +203,8 @@ def compute_billing_signals(
                         note=(
                             f"{entry.hours:.2f}h billed on {entry.entry_date.date()} (\"{narrative}\") "
                             f"against {observed_words} word(s) of matching correspondence within "
-                            f"{settings_billing.window_days} day(s) ({hours_per_100_words:.2f}h per 100 "
+                            f"{_window_phrase(entry, settings_billing.window_days)} "
+                            f"({hours_per_100_words:.2f}h per 100 "
                             f"words, threshold {settings_billing.hours_per_100_words_threshold:.2f}). "
                             "Correspondence volume is a rough proxy for the work actually visible in "
                             "this system, not a timer on the lawyer's day — flagged for manual invoice "
@@ -183,9 +220,17 @@ def compute_billing_signals(
         for call, identity in _matching_calls(entry, call_records, settings_billing.window_days):
             spoke = call.speaking_seconds.get(identity)
             subject = call.subject or "an unnamed call"
+            near_call = [
+                m
+                for thread in comment_threads
+                for m in thread.messages
+                if abs((m.timestamp.date() - call.start.date()).days) <= settings_billing.window_days
+            ]
+            words_near_call = sum(len(m.text.split()) for m in near_call)
             call_evidence = Evidence(
-                timestamps=[entry.entry_date, call.start, call.end],
-                quotes=[f"{subject}: {call.start.isoformat()} - {call.end.isoformat()}"],
+                timestamps=[entry.entry_date, call.start, call.end] + [m.timestamp for m in near_call],
+                quotes=[f"{subject}: {call.start.isoformat()} - {call.end.isoformat()}"]
+                + [f"{m.timestamp.date()}: {m.text[:_NARRATIVE_MAX_CHARS]}" for m in near_call[:5]],
             )
 
             if spoke is not None and settings_billing.call_analysis in ("transcript", "auto"):
@@ -210,7 +255,7 @@ def compute_billing_signals(
                             evidence=call_evidence,
                         )
                     )
-            elif settings_billing.call_analysis in ("attendance", "auto") and observed_words == 0:
+            elif settings_billing.call_analysis in ("attendance", "auto") and words_near_call == 0:
                 signals.append(
                     BillingSignal(
                         timekeeper_name=entry.timekeeper_name,
@@ -222,10 +267,10 @@ def compute_billing_signals(
                         observed_activity_words=0,
                         note=(
                             f"Confirmed attendance at \"{subject}\" on {call.start.date()}, but no "
-                            f"correspondence followed within {settings_billing.window_days} day(s). "
-                            "Calendar attendance is a hard fact; the absence of follow-up is not proof "
-                            "nothing happened in the call — flagged for manual invoice review, not a "
-                            "finding of overbilling."
+                            f"correspondence followed within {settings_billing.window_days} day(s) of "
+                            "the call itself. Calendar attendance is a hard fact; the absence of "
+                            "follow-up is not proof nothing happened in the call — flagged for manual "
+                            "invoice review, not a finding of overbilling."
                         ),
                         evidence=call_evidence,
                     )

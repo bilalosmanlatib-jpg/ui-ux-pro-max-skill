@@ -46,6 +46,21 @@ def _call(day: int, attendees: list[str], speaking_seconds: dict[str, float] | N
     )
 
 
+def _period_entry(hours: float = 5.0) -> TimeEntry:
+    """A period-level summary line -- e.g. one fee-earner total on an
+    invoice with no day-by-day breakdown -- covering the whole of
+    February 2026."""
+    return TimeEntry(
+        matter_id="LIB!3000",
+        timekeeper_name="Jane Doe",
+        timekeeper_role="Partner",
+        entry_date=datetime(2026, 2, 28, tzinfo=timezone.utc),
+        period_start=datetime(2026, 2, 1, tzinfo=timezone.utc),
+        hours=hours,
+        narrative="EAAIF ongoing financing work, period summary.",
+    )
+
+
 def test_flags_no_matching_activity():
     signals = compute_billing_signals(MATTER_REF, [_entry(5.0)], [], _settings())
     assert len(signals) == 1
@@ -223,3 +238,74 @@ def test_entry_can_carry_both_rate_and_activity_flags():
     )
     flags = {s.flag for s in signals}
     assert flags == {"rate_cap_violation", "no_matching_activity"}
+
+
+def test_period_entry_matches_correspondence_anywhere_in_the_period():
+    # window_days=1 would miss this (16 days from the period-end entry_date),
+    # but it falls inside the billed period (Feb 1-28), so it should count.
+    mid_period_email = _thread(15, "Short reply.")
+    signals = compute_billing_signals(
+        MATTER_REF, [_period_entry(5.0)], [mid_period_email], _settings()
+    )
+    assert signals[0].flag == "high_hours_per_output"
+    assert signals[0].observed_activity_words == 2
+
+
+def test_period_entry_ignores_correspondence_outside_the_period():
+    before_period = _thread(28, "word")  # Jan 28 would need year rollover; use day outside Feb instead
+    signals = compute_billing_signals(
+        MATTER_REF, [_period_entry(5.0)], [], _settings()
+    )
+    assert signals[0].flag == "no_matching_activity"
+
+
+def test_period_entry_matches_a_call_anywhere_in_the_period():
+    mid_period_call = _call(15, ["jane.doe@counsel.com"])
+    signals = compute_billing_signals(
+        MATTER_REF, [_period_entry(5.0)], [], _settings(call_analysis="attendance"), call_records=[mid_period_call]
+    )
+    assert any(s.flag == "call_no_output" for s in signals)
+
+
+def test_period_entry_note_describes_the_billed_period_not_a_day_window():
+    signals = compute_billing_signals(MATTER_REF, [_period_entry(5.0)], [], _settings())
+    note = signals[0].note
+    assert "billed period" in note
+    assert "2026-02-01" in note and "2026-02-28" in note
+
+
+def test_period_entry_call_check_is_not_masked_by_unrelated_period_correspondence():
+    # Correspondence exists elsewhere in the period (day 2), but not near
+    # the call itself (day 15) -- call_no_output should still fire, since
+    # "any output anywhere in the period" is not the question being asked.
+    unrelated_email = _thread(2, " ".join(["word"] * 50))
+    mid_period_call = _call(15, ["jane.doe@counsel.com"])
+    signals = compute_billing_signals(
+        MATTER_REF,
+        [_period_entry(5.0)],
+        [unrelated_email],
+        _settings(call_analysis="attendance"),
+        call_records=[mid_period_call],
+    )
+    assert any(s.flag == "call_no_output" for s in signals)
+
+
+def test_period_entry_call_check_not_flagged_when_correspondence_is_near_the_call():
+    near_call_email = _thread(15, " ".join(["word"] * 50))
+    mid_period_call = _call(15, ["jane.doe@counsel.com"])
+    signals = compute_billing_signals(
+        MATTER_REF,
+        [_period_entry(5.0)],
+        [near_call_email],
+        _settings(call_analysis="attendance"),
+        call_records=[mid_period_call],
+    )
+    flags = {s.flag for s in signals}
+    assert "call_no_output" not in flags
+
+
+def test_daily_entry_unaffected_by_period_logic():
+    # No period_start set -> behaves exactly as before (window_days still governs).
+    signals = compute_billing_signals(MATTER_REF, [_entry(5.0)], [], _settings())
+    assert signals[0].flag == "no_matching_activity"
+    assert "within 1 day(s) of that date" in signals[0].note

@@ -111,13 +111,20 @@ class TimeEntry(BaseModel):
     """One billed line item from an invoice filed against the matter.
     Extracted in-session (no e-billing MCP connector is connected) the same
     way document text/correspondence are: whoever assembles `raw_data`
-    itemizes the invoice and writes it to `raw_data["billing"]`."""
+    itemizes the invoice and writes it to `raw_data["billing"]`.
+
+    `period_start` is only set for a period-level summary line (e.g. a
+    fee-earner total on an invoice with no day-by-day breakdown) -- it
+    marks the start of the billed period, with `entry_date` as the period
+    end. Leave it unset for an ordinary daily entry; the observed-activity
+    checks then match against a single day instead of a range."""
 
     matter_id: str
     source_document_id: Optional[str] = None
     timekeeper_name: str
     timekeeper_role: Optional[str] = None
     entry_date: datetime
+    period_start: Optional[datetime] = None
     hours: float
     rate: Optional[float] = None
     amount: Optional[float] = None

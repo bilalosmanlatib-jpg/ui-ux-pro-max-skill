@@ -41,3 +41,14 @@ def test_parse_time_entries_carries_matter_and_source_document_id():
     entries = parse_time_entries("LIB!3000", raw, source_document_id="LIB!9999.1")
     assert entries[0].matter_id == "LIB!3000"
     assert entries[0].source_document_id == "LIB!9999.1"
+
+
+def test_parse_time_entries_picks_up_optional_period_start():
+    raw = [
+        {"timekeeper": "Jane Doe", "date": "2026-02-28", "period_start": "2026-02-01", "hours": 20.0},
+        {"timekeeper": "John Smith", "date": "2026-02-04", "hours": 1.0},
+    ]
+    entries = parse_time_entries("LIB!3000", raw)
+    by_name = {e.timekeeper_name: e for e in entries}
+    assert by_name["Jane Doe"].period_start.date().isoformat() == "2026-02-01"
+    assert by_name["John Smith"].period_start is None

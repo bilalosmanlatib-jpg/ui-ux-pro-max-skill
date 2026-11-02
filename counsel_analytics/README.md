@@ -212,7 +212,12 @@ live MCP calls or credentials needed.
 - `billing.enabled` (default `false`) — turns on named-timekeeper
   invoice-audit flags (see the guardrail carve-out above). `billing.window_days`
   (default 1) — calendar days either side of a billed date to search for
-  matching correspondence. `billing.hours_min_to_flag` (default 0.5) — entries
+  matching correspondence. This only governs an ordinary daily
+  `TimeEntry`; a period-level summary line (`TimeEntry.period_start` set —
+  e.g. a single fee-earner total on an invoice with no day-by-day
+  breakdown, `entry_date` as the period end) instead matches anything
+  inside that billed period, since a tight day-window around the period's
+  end date would miss nearly all of it. `billing.hours_min_to_flag` (default 0.5) — entries
   billed below this are too small to usefully flag. `billing.hours_per_100_words_threshold`
   (default 1.5) — flags an entry whose hours are disproportionate to the
   words of matching correspondence found. `billing.rate_caps` (a

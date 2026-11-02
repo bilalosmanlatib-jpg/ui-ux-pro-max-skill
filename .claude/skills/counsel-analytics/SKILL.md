@@ -47,7 +47,16 @@ This skill does not restate that reasoning — only the mechanics.
    with it attached), `download_document` it, and itemize each line into
    `{timekeeper, role, date, hours, rate, amount, currency, narrative}` —
    use your own judgment reading the invoice text/table; don't invent a
-   name or hours for a line you can't read cleanly, just skip it.
+   name or hours for a line you can't read cleanly, just skip it. If the
+   invoice only gives a fee-earner summary table (one total per
+   timekeeper, no day-by-day breakdown), set `date` to the period's end
+   and add `period_start` (the period's start) if the invoice states one,
+   or — failing that — the earliest dated evidence you actually have of
+   that firm's work on this matter (e.g. the first substantive
+   correspondence with them). Without `period_start`, the hours-vs-activity
+   and call checks fall back to a tight day-window around the period end
+   and will likely find nothing, which understates rather than overstates
+   a finding — still safe, just less informative.
 5b. **Enumerate calls (only if the user has explicitly asked for call
    analysis — never turn this on by inference from "audit the invoice")**:
    pull calendar events for the matter window via the Microsoft 365
