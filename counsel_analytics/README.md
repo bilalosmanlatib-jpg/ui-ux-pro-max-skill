@@ -18,7 +18,21 @@ something) is a separate, ordinary accountability concern and never blurs
 into that guardrail — it's recorded in `signoffs.jsonl`, never in the
 analytics report/packet.
 
-## Status: Phase 1 + Phase 2 + Phase 3 + Phase 3.5
+**Deliberate carve-out — billing integrity (`billing_signals`):** the one
+part of this system that *does* name an individual, on purpose. Under the
+engagement's contractual right to review a firm's billing breakdown against
+the work it actually produced, `metrics/billing_integrity.py` cross-checks
+named-timekeeper invoice line items against observable matter activity
+(correspondence volume, so far) and flags disproportionate entries for
+manual review — never a verdict of overbilling. This is invoice/vendor-spend
+audit, a different category from the behavioral-pattern guardrail above,
+and it's kept structurally separate: `BillingSignal` is not a `Metric`,
+lives in its own `MatterMetrics.billing_signals` list, is off by default
+(`billing.enabled: false`), and is never affected by `anonymize_authors`.
+It renders in its own report section with its own disclaimer, and it never
+appears in the review packet, which stays scoped to the aggregate metrics.
+
+## Status: Phase 1 + Phase 2 + Phase 3 + Phase 3.5 + Billing Integrity
 
 Implemented:
 - **Phase 1** — matter → document → version-timeline enumeration, text
@@ -46,6 +60,12 @@ Implemented:
   no version events" warning as a redline matter whose documents produced
   zero version events) was the entire cost; `ingest/diff/metrics/report`
   didn't change at all.
+- **Billing integrity** — named-timekeeper invoice-audit flags
+  (`mcp/billing.py`, `metrics/billing_integrity.py`), off by default
+  (`billing.enabled: false`). Invoice line items are itemized in-session
+  into `raw_data["billing"]` the same way correspondence already is (no
+  e-billing MCP connector exists — invoices are filed in iManage like any
+  other document). See the guardrail carve-out above.
 
 Still deferred (see the plan doc for the full phase breakdown, and
 "Extending" below for why each is a deliberate stop, not an oversight): an
@@ -64,7 +84,9 @@ module doesn't call them itself — instead:
    `download_document` (looping the `cursor` until exhausted and
    concatenating chunks) for each version you need text for, and — for
    Phase 2 tone scoring — `outlook_email_search`/`chat_message_search`
-   correspondence for the matter.
+   correspondence for the matter. For billing integrity (if enabled), find
+   invoice documents filed in iManage and itemize them (timekeeper, date,
+   hours, narrative) into `raw_data["billing"]`.
 2. Assemble those responses into the JSON shape documented in
    `counsel_analytics/mcp/client.py` (`SessionMCPClient`'s `raw_data`
    shape) and write it to a file. `tests/fixtures/one_matter.json`
@@ -163,6 +185,13 @@ live MCP calls or credentials needed.
   metrics the review packet surfaces, and a coarse magnitude floor.
 - `output_dir` — where JSON/CSV/Markdown reports, the sign-off log, the
   counterparty rollup, and the local text cache are written.
+- `billing.enabled` (default `false`) — turns on named-timekeeper
+  invoice-audit flags (see the guardrail carve-out above). `billing.window_days`
+  (default 1) — calendar days either side of a billed date to search for
+  matching correspondence. `billing.hours_min_to_flag` (default 0.5) — entries
+  billed below this are too small to usefully flag. `billing.hours_per_100_words_threshold`
+  (default 1.5) — flags an entry whose hours are disproportionate to the
+  words of matching correspondence found. Unaffected by `anonymize_authors`.
 
 A firm needs 2+ matters with a resolvable firm before `metrics/aggregate.py`
 will roll it up at all (a single matter has nothing to trend against) —

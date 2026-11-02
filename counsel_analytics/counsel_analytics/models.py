@@ -107,11 +107,49 @@ class Metric(BaseModel):
     note: Optional[str] = None
 
 
+class TimeEntry(BaseModel):
+    """One billed line item from an invoice filed against the matter.
+    Extracted in-session (no e-billing MCP connector is connected) the same
+    way document text/correspondence are: whoever assembles `raw_data`
+    itemizes the invoice and writes it to `raw_data["billing"]`."""
+
+    matter_id: str
+    source_document_id: Optional[str] = None
+    timekeeper_name: str
+    timekeeper_role: Optional[str] = None
+    entry_date: datetime
+    hours: float
+    rate: Optional[float] = None
+    amount: Optional[float] = None
+    currency: Optional[str] = None
+    narrative: str = ""
+
+
+class BillingSignal(BaseModel):
+    """Named-timekeeper billing/invoice-audit flag — deliberately NOT a
+    `Metric`. Scoped to the engagement's contractual right to review billed
+    work against observable matter activity (invoice audit, not behavioral
+    profiling); kept in its own list so it can never be merged into the
+    aggregate, never-individual `metrics`/`clause_signals`. See the README
+    guardrail section."""
+
+    timekeeper_name: str
+    timekeeper_role: Optional[str] = None
+    entry_date: datetime
+    hours: float
+    narrative: str
+    flag: str
+    observed_activity_words: int
+    note: str
+    evidence: Evidence
+
+
 class MatterMetrics(BaseModel):
     matter_ref: MatterRef
     version_events: list[VersionEvent] = Field(default_factory=list)
     metrics: list[Metric] = Field(default_factory=list)
     clause_signals: list[Metric] = Field(default_factory=list)
+    billing_signals: list[BillingSignal] = Field(default_factory=list)
     generated_at: datetime
 
 

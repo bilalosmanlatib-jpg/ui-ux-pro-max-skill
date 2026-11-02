@@ -25,6 +25,17 @@ _GUARDRAIL_NOTE = (
     "counterparty over time."
 )
 
+_BILLING_GUARDRAIL_NOTE = (
+    "This section deliberately names the timekeeper on the invoice line "
+    "item — it is the one section of this report that identifies a named "
+    "individual, and it is never affected by anonymize_authors. It exists "
+    "under the engagement's contractual right to review billed work "
+    "against work actually produced, not as behavioral profiling, and is "
+    "kept separate from every other section above for that reason. Every "
+    "flag is a candidate for manual invoice review, not a finding of "
+    "overbilling."
+)
+
 
 def _metrics_by_document(metrics: list[Metric]) -> dict[str, list[Metric]]:
     grouped: dict[str, list[Metric]] = defaultdict(list)
@@ -100,4 +111,20 @@ def generate_markdown(bundle: MatterReportBundle) -> str:
         lines.append("")
 
     lines.extend(["", "## Guardrails", "", _GUARDRAIL_NOTE, ""])
+
+    if bundle.matter_metrics.billing_signals:
+        lines.extend(["", "## Billing Integrity (Invoice Review)", "", _BILLING_GUARDRAIL_NOTE, ""])
+        lines.append("| timekeeper | role | date | hours | flag | observed words |")
+        lines.append("| --- | --- | --- | --- | --- | --- |")
+        for signal in bundle.matter_metrics.billing_signals:
+            lines.append(
+                f"| {signal.timekeeper_name} | {signal.timekeeper_role or '—'} | "
+                f"{signal.entry_date.date()} | {signal.hours:.2f} | {signal.flag} | "
+                f"{signal.observed_activity_words} |"
+            )
+        lines.append("")
+        for signal in bundle.matter_metrics.billing_signals:
+            lines.append(f"> {signal.note}")
+        lines.append("")
+
     return "\n".join(lines)

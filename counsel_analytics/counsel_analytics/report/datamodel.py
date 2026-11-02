@@ -134,6 +134,34 @@ def write_clause_signals_csv(bundle: MatterReportBundle, output_dir: Path) -> Pa
     return path
 
 
+def write_billing_signals_csv(bundle: MatterReportBundle, output_dir: Path) -> Path:
+    """Deliberately never anonymized — see `models.BillingSignal` and the
+    README guardrail section: this is the one report artifact that names a
+    timekeeper on purpose, under the engagement's contractual right to
+    review billed work."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / "billing_signals.csv"
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            ["timekeeper_name", "timekeeper_role", "entry_date", "hours", "narrative", "flag", "observed_activity_words", "note"]
+        )
+        for signal in bundle.matter_metrics.billing_signals:
+            writer.writerow(
+                [
+                    signal.timekeeper_name,
+                    signal.timekeeper_role or "",
+                    signal.entry_date.isoformat(),
+                    signal.hours,
+                    signal.narrative,
+                    signal.flag,
+                    signal.observed_activity_words,
+                    signal.note,
+                ]
+            )
+    return path
+
+
 def write_all(bundle: MatterReportBundle, output_dir: Path, anonymize_authors: bool) -> dict[str, Path]:
     return {
         "json": write_json(bundle, output_dir, anonymize_authors),
@@ -141,4 +169,5 @@ def write_all(bundle: MatterReportBundle, output_dir: Path, anonymize_authors: b
         "turnaround_rounds_csv": write_turnaround_rounds_csv(bundle, output_dir),
         "matter_metrics_csv": write_matter_metrics_csv(bundle, output_dir),
         "clause_signals_csv": write_clause_signals_csv(bundle, output_dir),
+        "billing_signals_csv": write_billing_signals_csv(bundle, output_dir),
     }

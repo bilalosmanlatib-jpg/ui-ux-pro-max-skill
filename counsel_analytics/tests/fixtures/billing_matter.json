@@ -1,0 +1,63 @@
+{
+  "workspaces": {
+    "LIB!3000": {
+      "name": "Project Orion - Framework Agreement",
+      "custom1": "CLIENT002",
+      "custom2": "MAT3000"
+    }
+  },
+  "container_children": {
+    "LIB!3000|workspace": [
+      {
+        "documentId": "LIB!4001",
+        "name": "Framework Agreement.docx",
+        "type": "document"
+      }
+    ]
+  },
+  "document_versions": {
+    "LIB!4001": [
+      {"version": 1, "author": "jane.doe@ninetyone.com", "modifiedDate": "2026-02-02T09:00:00Z", "size": 12000, "comment": "First draft"},
+      {"version": 2, "author": "counsel@examplefirmllp.com", "modifiedDate": "2026-02-04T15:00:00Z", "size": 12100, "comment": "Redlined warranties"}
+    ]
+  },
+  "document_text": {
+    "LIB!4001.1": "1. Definitions\nAgreement means this framework agreement.\n\n2. Price\nThe price is fixed at 500.\n\n3. Warranties\nSeller warrants title to the assets.\n",
+    "LIB!4001.2": "1. Definitions\nAgreement means this framework agreement.\n\n2. Price\nThe price is fixed at 500.\n\n3. Warranties\nSeller warrants good title to the assets free of encumbrances.\n"
+  },
+  "correspondence": {
+    "LIB!3000": [
+      {
+        "source": "outlook",
+        "from": "counsel@examplefirmllp.com",
+        "timestamp": "2026-02-04T15:30:00Z",
+        "subject": "RE: Framework Agreement - Warranties",
+        "body": "Please see our comments on the warranties clause attached."
+      }
+    ]
+  },
+  "billing": {
+    "LIB!3000": [
+      {
+        "timekeeper": "Jane Doe",
+        "role": "Partner",
+        "date": "2026-02-04",
+        "hours": 5.0,
+        "rate": 650,
+        "amount": 3250,
+        "currency": "GBP",
+        "narrative": "Review and respond to lender correspondence re: warranties."
+      },
+      {
+        "timekeeper": "John Smith",
+        "role": "Associate",
+        "date": "2026-03-01",
+        "hours": 3.0,
+        "rate": 400,
+        "amount": 1200,
+        "currency": "GBP",
+        "narrative": "Internal research, no correspondence sent."
+      }
+    ]
+  }
+}

@@ -19,6 +19,19 @@ class PacketSettings(BaseModel):
     min_abs_value: float = 0.0
 
 
+class BillingSettings(BaseModel):
+    """Named-timekeeper invoice audit — off by default. Only takes effect
+    when `raw_data["billing"]` has entries for the matter (invoices filed in
+    iManage, itemized in-session the same way correspondence is). See the
+    README guardrail section for why this is a deliberate, separate carve-out
+    from the matter/firm-level analytics, not an extension of them."""
+
+    enabled: bool = False
+    window_days: int = 1
+    hours_min_to_flag: float = 0.5
+    hours_per_100_words_threshold: float = 1.5
+
+
 class Settings(BaseModel):
     matter_ids: list[str]
     domain: Literal["redline", "compliance"] = "redline"
@@ -33,6 +46,7 @@ class Settings(BaseModel):
     output_dir: str = "./data/output"
     packet: PacketSettings = Field(default_factory=PacketSettings)
     tone_lexicon_path: Optional[str] = None
+    billing: BillingSettings = Field(default_factory=BillingSettings)
 
 
 def load_settings(path: str | Path) -> Settings:

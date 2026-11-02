@@ -59,3 +59,17 @@ packet:
 # Escalation-lexicon path for tone scoring. Unset -> packaged default at
 # config/lexicons/escalation_terms.yaml.
 tone_lexicon_path: null
+
+# Named-timekeeper invoice-audit flags (see README guardrail carve-out).
+# Off by default; only takes effect if raw_data["billing"] has entries for
+# the matter. Never affected by anonymize_authors.
+billing:
+  enabled: false
+  # Calendar days either side of a billed date to search for matching
+  # correspondence (the "observed activity" proxy).
+  window_days: 1
+  # Entries billed below this many hours are too small to usefully flag.
+  hours_min_to_flag: 0.5
+  # Flag an entry whose hours, relative to the words of matching
+  # correspondence found, exceed this ratio.
+  hours_per_100_words_threshold: 1.5

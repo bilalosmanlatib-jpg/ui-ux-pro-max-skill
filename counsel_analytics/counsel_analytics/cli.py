@@ -25,12 +25,14 @@ from counsel_analytics.diff.textdiff import diff_versions
 from counsel_analytics.ingest.correspond import correlate_correspondence
 from counsel_analytics.ingest.enumerate import enumerate_all
 from counsel_analytics.ingest.extract import extract_version_text
+from counsel_analytics.mcp.billing import parse_time_entries
 from counsel_analytics.mcp.client import build_client
 from counsel_analytics.metrics.aggregate import (
     compute_counterparty_rollups,
     resolve_firm_from_threads,
     resolve_matter_firm,
 )
+from counsel_analytics.metrics.billing_integrity import compute_billing_signals
 from counsel_analytics.metrics.reargument import compute_reargument_metrics
 from counsel_analytics.metrics.tone import compute_tone_metrics
 from counsel_analytics.metrics.turnaround import compute_turnaround_metrics
@@ -160,6 +162,12 @@ def run(config_path: str, raw_data_path: str, matter_overrides: list[str] | None
         )
         metrics.extend(compute_tone_metrics(timeline.matter_ref, correlated_threads, settings, rounds=message_rounds))
 
+        billing_signals = []
+        if settings.billing.enabled:
+            raw_billing = client.get_billing_raw(timeline.matter_ref.workspace_id)
+            time_entries = parse_time_entries(timeline.matter_ref.workspace_id, raw_billing)
+            billing_signals = compute_billing_signals(timeline.matter_ref, time_entries, raw_threads, settings)
+
         firm = resolve_matter_firm(version_events, settings.internal_domains, settings.firm_domains)
         if firm is None:
             # No counsel-side version events to resolve from (always true for
@@ -172,6 +180,7 @@ def run(config_path: str, raw_data_path: str, matter_overrides: list[str] | None
             version_events=version_events,
             metrics=metrics,
             clause_signals=clause_signals,
+            billing_signals=billing_signals,
             generated_at=datetime.now(timezone.utc),
         )
         bundle = MatterReportBundle(matter_metrics=matter_metrics, rounds_by_document=rounds_by_document)

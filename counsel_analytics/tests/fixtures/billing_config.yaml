@@ -1,0 +1,15 @@
+matter_ids:
+  - "LIB!3000"
+mcp_client: session
+internal_domains:
+  - "ninetyone.com"
+firm_domains:
+  examplefirmllp.com: "Example Firm LLP"
+correspondence_window_days: 3
+anonymize_authors: false
+output_dir: "./data/output"
+billing:
+  enabled: true
+  window_days: 1
+  hours_min_to_flag: 0.5
+  hours_per_100_words_threshold: 1.5

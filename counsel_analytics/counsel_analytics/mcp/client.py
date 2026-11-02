@@ -37,6 +37,8 @@ class MCPClient(Protocol):
 
     def get_correspondence_raw(self, matter_id: str) -> list[dict]: ...
 
+    def get_billing_raw(self, matter_id: str) -> list[dict]: ...
+
 
 class SessionMCPClient:
     """Looks up pre-fetched MCP responses supplied by the orchestrating
@@ -53,6 +55,7 @@ class SessionMCPClient:
           "document_versions": {document_id: [<version>, ...]},
           "document_text": {document_id_versioned: "<extracted text>"},
           "correspondence": {matter_id: [<raw email/chat message>, ...]},
+          "billing": {matter_id: [<raw invoice line item>, ...]},
         }
     """
 
@@ -62,6 +65,7 @@ class SessionMCPClient:
         self._document_versions: dict[str, list[dict]] = raw_data.get("document_versions", {})
         self._document_text: dict[str, str] = raw_data.get("document_text", {})
         self._correspondence: dict[str, list[dict]] = raw_data.get("correspondence", {})
+        self._billing: dict[str, list[dict]] = raw_data.get("billing", {})
 
     def get_workspace_profile(self, workspace_id: str) -> dict:
         try:
@@ -102,6 +106,12 @@ class SessionMCPClient:
         # genuinely have no correspondence fetched, or none at all — that's
         # not an error the pipeline needs to stop for.
         return self._correspondence.get(matter_id, [])
+
+    def get_billing_raw(self, matter_id: str) -> list[dict]:
+        # Empty is the default/expected case: billing is opt-in
+        # (settings.billing.enabled) and most matters won't have invoice
+        # line items fetched at all.
+        return self._billing.get(matter_id, [])
 
 
 class DirectMCPClient:

@@ -126,6 +126,71 @@ def test_run_warns_when_redline_document_enumerates_zero_versions(zero_versions_
     )
 
 
+@pytest.fixture()
+def billing_output_dir(tmp_path):
+    config_src = FIXTURES / "billing_config.yaml"
+    config = tmp_path / "config.yaml"
+    out_dir = tmp_path / "output"
+    config.write_text(
+        config_src.read_text().replace("./data/output", str(out_dir)), encoding="utf-8"
+    )
+    return config, out_dir
+
+
+def test_run_produces_billing_signals_without_leaking_name_into_other_sections(billing_output_dir):
+    config, out_dir = billing_output_dir
+    raw_data_path = FIXTURES / "billing_matter.json"
+
+    written = cli.run(str(config), str(raw_data_path), matter_overrides=None)
+
+    md_files = [p for p in written if p.suffix == ".md"]
+    assert len(md_files) == 1
+    report_text = md_files[0].read_text(encoding="utf-8")
+
+    assert "## Billing Integrity (Invoice Review)" in report_text
+    assert "Jane Doe" in report_text
+    assert "John Smith" in report_text
+    assert "no_matching_activity" in report_text
+    assert "high_hours_per_output" in report_text
+    for term in _FORBIDDEN_TERMS:
+        assert term not in report_text.lower()
+
+    # The named-individual carve-out must never leak into the aggregate,
+    # never-individual sections above it.
+    billing_heading_index = report_text.index("## Billing Integrity")
+    aggregate_sections = report_text[:billing_heading_index]
+    assert "Jane Doe" not in aggregate_sections
+    assert "John Smith" not in aggregate_sections
+
+    billing_csv = out_dir / "billing_signals.csv"
+    assert billing_csv.exists()
+    csv_text = billing_csv.read_text(encoding="utf-8")
+    assert "Jane Doe" in csv_text and "John Smith" in csv_text
+
+    json_files = [p for p in written if p.suffix == ".json"]
+    payload = json.loads(json_files[0].read_text(encoding="utf-8"))
+    assert len(payload["billing_signals"]) == 2
+    flags = {s["flag"] for s in payload["billing_signals"]}
+    assert flags == {"no_matching_activity", "high_hours_per_output"}
+
+
+def test_run_omits_billing_section_when_disabled(output_dir):
+    # output_dir uses test_config.yaml, which has no `billing` block
+    # (defaults to enabled: false).
+    config, out_dir = output_dir
+    raw_data_path = FIXTURES / "one_matter.json"
+
+    written = cli.run(str(config), str(raw_data_path), matter_overrides=None)
+
+    md_files = [p for p in written if p.suffix == ".md"]
+    report_text = md_files[0].read_text(encoding="utf-8")
+    assert "Billing Integrity" not in report_text
+
+    json_files = [p for p in written if p.suffix == ".json"]
+    payload = json.loads(json_files[0].read_text(encoding="utf-8"))
+    assert payload["billing_signals"] == []
+
+
 def _merge_raw_data(a: dict, b: dict) -> dict:
     return {key: {**a.get(key, {}), **b.get(key, {})} for key in set(a) | set(b)}
 
