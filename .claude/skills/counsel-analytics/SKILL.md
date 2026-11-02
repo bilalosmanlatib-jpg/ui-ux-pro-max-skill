@@ -48,6 +48,18 @@ This skill does not restate that reasoning — only the mechanics.
    `{timekeeper, role, date, hours, rate, amount, currency, narrative}` —
    use your own judgment reading the invoice text/table; don't invent a
    name or hours for a line you can't read cleanly, just skip it.
+5b. **Enumerate calls (only if the user has explicitly asked for call
+   analysis — never turn this on by inference from "audit the invoice")**:
+   pull calendar events for the matter window via the Microsoft 365
+   calendar tools into `{start, end, subject, attendees}` per event —
+   attendees are a hard fact, itemize them as given. Only where a Teams
+   transcript actually exists for that event (most won't — don't go
+   looking hard for one), read it via a `meeting-transcript:///` resource
+   and sum seconds spoken per identifiable speaker into
+   `speakingSeconds: {identity: seconds}`. If the user asked for
+   `"transcript"` mode specifically but no transcript exists for a call,
+   say so rather than silently falling back — `"auto"` mode is the one
+   that's meant to fall back quietly.
 6. **Classify**: `internal_domains: ["ninetyone.com"]`. For `firm_domains`,
    identify which external sender domain(s) are law firms (cues: "LLP",
    "Partner/Director, Legal" signature blocks) vs. counterparty/other
@@ -55,12 +67,16 @@ This skill does not restate that reasoning — only the mechanics.
    `redline` if step 3 found a multi-version document, else `compliance`.
 7. **Assemble** `raw_data.json` (see `mcp/client.py`'s `SessionMCPClient`
    docstring for the exact shape — `workspaces`/`container_children`/
-   `document_versions`/`document_text`/`correspondence`/`billing`) and
-   `config.yaml` (`matter_ids`, `domain`, `mcp_client: session`,
-   `internal_domains`, `firm_domains`, `correspondence_window_days: 3`,
-   `anonymize_authors: false`, `output_dir: "./data/output/<slug>"` where
-   slug = workspace id with `!` → `_`, `billing.enabled: true` only if step
-   5 ran). Write both under `counsel_analytics/data/output/<slug>/_inputs/`.
+   `document_versions`/`document_text`/`correspondence`/`billing`/`calls`,
+   the last only if step 5b ran) and `config.yaml` (`matter_ids`, `domain`,
+   `mcp_client: session`, `internal_domains`, `firm_domains`,
+   `correspondence_window_days: 3`, `anonymize_authors: false`,
+   `output_dir: "./data/output/<slug>"` where slug = workspace id with `!`
+   → `_`, `billing.enabled: true` only if step 5 ran, and
+   `billing.call_analysis` set to `"attendance"`/`"transcript"`/`"auto"`
+   only if step 5b ran and the user specified which — never default it to
+   anything but `"off"`). Write both under
+   `counsel_analytics/data/output/<slug>/_inputs/`.
 8. **Run**: from `counsel_analytics/`, `.venv/bin/counsel-analytics run
    --config data/output/<slug>/_inputs/config.yaml --raw-data
    data/output/<slug>/_inputs/raw_data.json`, then `.venv/bin/counsel-analytics
@@ -90,7 +106,13 @@ at `counsel_analytics/data/dashboard/{matters,metrics,pipeline_log}.json`
 (already seeded with the real Grand Bara Djibouti run as of 2026-11-02 —
 `data/` is gitignored, so if a fresh checkout is missing them, initialize
 each as `[]` and expect the dashboard to briefly disagree with the running
-session's memory until the next refresh repopulates them).
+session's memory until the next refresh repopulates them). A fourth
+dataset, `billing_signals`, carries the named-timekeeper flags from
+`MatterMetrics.billing_signals` — it's already live on the dashboard
+(`data/dashboard/billing_signals.json`) and follows the exact same
+upsert/upload/update loop below; only populate it when billing was enabled
+for the run (step 5), and never let it anywhere near the
+matter/firm-scoped `metrics` dataset.
 
 **Do not overwrite dashboard history.** Each refresh must *upsert*, not
 replace:
@@ -103,19 +125,24 @@ replace:
   `workspace_id`, `display_name`, `seq`, `stage`, `status`, `detail`) —
   never delete prior runs' rows; this is the audit trail the process
   visualization reads.
+- `billing_signals.json` (only if billing ran): one row per
+  `(workspace_id, timekeeper_name, entry_date, flag)` — replace that row if
+  it already exists (a re-run may refine a note/evidence), append if new;
+  never delete prior runs' rows.
 
 Then:
 1. Load Artifact `action: "publish"`, `url:
    "https://claude.ai/artifact/5XARJwshKRGQAyogEyPTvx"`, `asset: true`,
-   `file_path` set to each of the three updated JSON files **one call per
-   file** (JSON/CSV/text assets upload one at a time, not via
-   `file_paths`) — note each returned `/_blob/<id>` url.
+   `file_path` set to each updated JSON file **one call per file**
+   (JSON/CSV/text assets upload one at a time, not via `file_paths`) —
+   note each returned `/_blob/<id>` url.
 2. `ArtifactData` `action: "update"` on `collection: "datasets"`,
-   `doc_id`: `"matters"` / `"metrics"` / `"pipeline_log"` for whichever
-   file(s) changed, setting `source.url` to the new blob id and
-   `updated: {at: "<ISO timestamp>", by: "counsel-analytics skill"}`. Use
-   `if_version` from the dataset doc's last-read `version` (read it first
-   if you don't already have it from this session).
+   `doc_id`: `"matters"` / `"metrics"` / `"pipeline_log"` /
+   `"billing_signals"` for whichever file(s) changed, setting `source.url`
+   to the new blob id and `updated: {at: "<ISO timestamp>", by:
+   "counsel-analytics skill"}`. Use `if_version` from the dataset doc's
+   last-read `version` (read it first if you don't already have it from
+   this session).
 3. Confirm with one `ArtifactData` `list` of `datasets` — don't open or
    screenshot the page; the type's own runtime renders it.
 
@@ -128,5 +155,10 @@ Then:
 - This touches real client/matter data. Confirm scope with the user before
   pulling a *new* matter that hasn't already been discussed in the
   conversation — don't silently expand to matters nobody asked about.
+- Never set `billing.call_analysis` to anything but `"off"` unless the user
+  has explicitly asked for call analysis in this conversation —
+  `"attendance"` and `"transcript"` are a sharper line than the rest of the
+  billing carve-out (see README) and must never be inferred from a plain
+  "audit the invoice" request.
 - Correspondence pulls stay bounded (~30-50 relevant messages) — this is a
   review tool, not a bulk export.

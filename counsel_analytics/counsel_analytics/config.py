@@ -36,6 +36,17 @@ class BillingSettings(BaseModel):
     # of hours_min_to_flag -- a wrong rate is a contract breach at any
     # volume, not a noisy signal to filter out.
     rate_caps: dict[str, float] = Field(default_factory=dict)
+    # "off" (default): no call-based checks. "attendance": a timekeeper who
+    # attended a call on the matter but produced no observable output
+    # (correspondence) around it is flagged -- same proxy caveats as the
+    # hours-vs-correspondence check, since attendance alone doesn't prove
+    # idleness. "transcript": requires speaking_seconds (only present when a
+    # transcript was fetched for that call) -- flags a confirmed attendee who
+    # didn't speak; a real step up in sensitivity (see README). "auto": use
+    # transcript where a call has one, fall back to attendance otherwise --
+    # picks per call based on what data actually exists, never guesses.
+    call_analysis: Literal["off", "attendance", "transcript", "auto"] = "off"
+    call_min_speaking_seconds: float = 30.0
 
 
 class Settings(BaseModel):

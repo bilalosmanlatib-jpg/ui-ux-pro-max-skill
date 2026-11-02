@@ -125,6 +125,22 @@ class TimeEntry(BaseModel):
     narrative: str = ""
 
 
+class CallRecord(BaseModel):
+    """One calendar/Teams meeting on the matter. `attendees` is identities
+    (usually emails) confirmed present — a hard fact from the calendar, not
+    an invoice's say-so. `speaking_seconds` is populated only when a
+    transcript was available and fetched for this call (most won't have
+    one); its absence is the normal case, not a data-quality problem."""
+
+    matter_id: str
+    source_event_id: Optional[str] = None
+    start: datetime
+    end: datetime
+    subject: Optional[str] = None
+    attendees: list[str] = Field(default_factory=list)
+    speaking_seconds: dict[str, float] = Field(default_factory=dict)
+
+
 class BillingSignal(BaseModel):
     """Named-timekeeper billing/invoice-audit flag — deliberately NOT a
     `Metric`. Scoped to the engagement's contractual right to review billed

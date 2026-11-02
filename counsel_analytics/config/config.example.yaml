@@ -78,3 +78,14 @@ billing:
   # a deterministic contract check, not a heuristic.
   rate_caps: {}
   #   "Henry Newton-Savage": 500.0
+  # Call-based checks, off by default and a step beyond the checks above --
+  # read the README guardrail section before turning this on.
+  # "off" (default) | "attendance" (confirmed call attendance + no
+  # correspondence around it -> call_no_output; still a proxy, not proof) |
+  # "transcript" (a meeting transcript shows under call_min_speaking_seconds
+  # of speaking -> call_no_contribution; only possible when a transcript
+  # exists, and looks at what was said, not just whether work exists) |
+  # "auto" (use transcript where a call has one, attendance otherwise --
+  # picked per call by what data exists, never guessed).
+  call_analysis: off
+  call_min_speaking_seconds: 30.0

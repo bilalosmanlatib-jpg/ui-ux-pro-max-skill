@@ -26,6 +26,7 @@ from counsel_analytics.ingest.correspond import correlate_correspondence
 from counsel_analytics.ingest.enumerate import enumerate_all
 from counsel_analytics.ingest.extract import extract_version_text
 from counsel_analytics.mcp.billing import parse_time_entries
+from counsel_analytics.mcp.calls import parse_call_records
 from counsel_analytics.mcp.client import build_client
 from counsel_analytics.metrics.aggregate import (
     compute_counterparty_rollups,
@@ -166,7 +167,13 @@ def run(config_path: str, raw_data_path: str, matter_overrides: list[str] | None
         if settings.billing.enabled:
             raw_billing = client.get_billing_raw(timeline.matter_ref.workspace_id)
             time_entries = parse_time_entries(timeline.matter_ref.workspace_id, raw_billing)
-            billing_signals = compute_billing_signals(timeline.matter_ref, time_entries, raw_threads, settings)
+            call_records = []
+            if settings.billing.call_analysis != "off":
+                raw_calls = client.get_calls_raw(timeline.matter_ref.workspace_id)
+                call_records = parse_call_records(timeline.matter_ref.workspace_id, raw_calls)
+            billing_signals = compute_billing_signals(
+                timeline.matter_ref, time_entries, raw_threads, settings, call_records
+            )
 
         firm = resolve_matter_firm(version_events, settings.internal_domains, settings.firm_domains)
         if firm is None:

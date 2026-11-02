@@ -23,14 +23,32 @@ part of this system that *does* name an individual, on purpose. Under the
 engagement's contractual right to review a firm's billing breakdown against
 the work it actually produced, `metrics/billing_integrity.py` cross-checks
 named-timekeeper invoice line items against observable matter activity
-(correspondence volume, so far) and flags disproportionate entries for
-manual review — never a verdict of overbilling. This is invoice/vendor-spend
-audit, a different category from the behavioral-pattern guardrail above,
-and it's kept structurally separate: `BillingSignal` is not a `Metric`,
-lives in its own `MatterMetrics.billing_signals` list, is off by default
+(correspondence volume, redline/diff volume is a planned extension — see
+"Extending" — and call attendance/transcripts, below) and flags
+disproportionate entries for manual review — never a verdict of
+overbilling. This is invoice/vendor-spend audit, a different category from
+the behavioral-pattern guardrail above, and it's kept structurally
+separate: `BillingSignal` is not a `Metric`, lives in its own
+`MatterMetrics.billing_signals` list, is off by default
 (`billing.enabled: false`), and is never affected by `anonymize_authors`.
 It renders in its own report section with its own disclaimer, and it never
 appears in the review packet, which stays scoped to the aggregate metrics.
+
+**A second, sharper line inside that carve-out — calls (`billing.call_analysis`,
+off by default, `"off"`/`"attendance"`/`"transcript"`/`"auto"`):** every
+check above (rate caps, hours vs. correspondence) asks "does the matter
+show evidence this work happened" — it never looks at what anyone actually
+said or did. Call analysis is different in kind, not just degree, in its
+`"transcript"` mode: `"attendance"` mode stays on the same footing as the
+other checks (a timekeeper's calendar attendance is a hard fact; the
+absence of correspondence afterward is still just a proxy, same caveat as
+`no_matching_activity`) — but `"transcript"` mode reads a meeting
+transcript and checks whether the named timekeeper actually spoke. That is
+real conduct-in-a-meeting analysis, not invoice-vs-contract or
+invoice-vs-output comparison, and it deserves to be turned on deliberately,
+matter by matter, not defaulted on. `"auto"` picks per call based on
+whether a transcript was actually fetched for it (most won't have one) —
+it never fetches or requests one itself.
 
 ## Status: Phase 1 + Phase 2 + Phase 3 + Phase 3.5 + Billing Integrity
 
@@ -65,7 +83,9 @@ Implemented:
   (`billing.enabled: false`). Invoice line items are itemized in-session
   into `raw_data["billing"]` the same way correspondence already is (no
   e-billing MCP connector exists — invoices are filed in iManage like any
-  other document). See the guardrail carve-out above.
+  other document). Includes an optional, separately-gated call-attendance/
+  transcript check (`billing.call_analysis`, off by default — `mcp/calls.py`).
+  See the guardrail carve-out above.
 
 Still deferred (see the plan doc for the full phase breakdown, and
 "Extending" below for why each is a deliberate stop, not an oversight): an
@@ -86,7 +106,11 @@ module doesn't call them itself — instead:
    Phase 2 tone scoring — `outlook_email_search`/`chat_message_search`
    correspondence for the matter. For billing integrity (if enabled), find
    invoice documents filed in iManage and itemize them (timekeeper, date,
-   hours, narrative) into `raw_data["billing"]`.
+   hours, narrative) into `raw_data["billing"]`. For call analysis (if
+   enabled), pull calendar events via the Microsoft 365 calendar tools
+   (attendees are a hard fact) and, only where a transcript actually
+   exists, a `meeting-transcript:///` resource for per-speaker seconds,
+   into `raw_data["calls"]`.
 2. Assemble those responses into the JSON shape documented in
    `counsel_analytics/mcp/client.py` (`SessionMCPClient`'s `raw_data`
    shape) and write it to a file. `tests/fixtures/one_matter.json`
@@ -197,6 +221,18 @@ live MCP calls or credentials needed.
   (not gated by `hours_min_to_flag`): a deterministic contract check, not a
   heuristic, and the most defensible of the billing-integrity checks for
   that reason. Unaffected by `anonymize_authors`.
+- `billing.call_analysis` (default `"off"`) — `"attendance"` flags a
+  confirmed call attendee with no correspondence around the call
+  (`call_no_output`); `"transcript"` flags a confirmed attendee whose
+  meeting transcript shows under `billing.call_min_speaking_seconds`
+  (default 30.0) of speaking (`call_no_contribution`) — only fires when a
+  transcript was actually fetched for that call; `"auto"` picks per call by
+  what data exists. Read the guardrail carve-out above before turning on
+  `"transcript"` or `"auto"` — it's a real step up in sensitivity over
+  every other check here. Matching a `TimeEntry.timekeeper_name` to a
+  `CallRecord` attendee identity is a name-token heuristic
+  (`metrics/billing_integrity.py`'s `_name_matches_identity`), not exact —
+  a miss is a silent non-match, never a wrong one.
 
 A firm needs 2+ matters with a resolvable firm before `metrics/aggregate.py`
 will roll it up at all (a single matter has nothing to trend against) —

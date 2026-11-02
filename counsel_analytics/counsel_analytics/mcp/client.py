@@ -39,6 +39,8 @@ class MCPClient(Protocol):
 
     def get_billing_raw(self, matter_id: str) -> list[dict]: ...
 
+    def get_calls_raw(self, matter_id: str) -> list[dict]: ...
+
 
 class SessionMCPClient:
     """Looks up pre-fetched MCP responses supplied by the orchestrating
@@ -56,6 +58,7 @@ class SessionMCPClient:
           "document_text": {document_id_versioned: "<extracted text>"},
           "correspondence": {matter_id: [<raw email/chat message>, ...]},
           "billing": {matter_id: [<raw invoice line item>, ...]},
+          "calls": {matter_id: [<raw calendar/Teams meeting>, ...]},
         }
     """
 
@@ -66,6 +69,7 @@ class SessionMCPClient:
         self._document_text: dict[str, str] = raw_data.get("document_text", {})
         self._correspondence: dict[str, list[dict]] = raw_data.get("correspondence", {})
         self._billing: dict[str, list[dict]] = raw_data.get("billing", {})
+        self._calls: dict[str, list[dict]] = raw_data.get("calls", {})
 
     def get_workspace_profile(self, workspace_id: str) -> dict:
         try:
@@ -112,6 +116,12 @@ class SessionMCPClient:
         # (settings.billing.enabled) and most matters won't have invoice
         # line items fetched at all.
         return self._billing.get(matter_id, [])
+
+    def get_calls_raw(self, matter_id: str) -> list[dict]:
+        # Empty is the default/expected case: call analysis is opt-in
+        # (settings.billing.call_analysis != "off") and most matters won't
+        # have calendar/Teams data fetched at all.
+        return self._calls.get(matter_id, [])
 
 
 class DirectMCPClient:

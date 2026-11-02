@@ -10,7 +10,7 @@ against work actually produced — it's invoice/vendor-spend audit, not
 behavioral profiling, and the two must never be merged: `BillingSignal` is
 a distinct type from `Metric`, and `anonymize_authors` never touches it.
 
-Two independent check families:
+Three independent check families:
 - **Rate-cap violation** — the invoiced hourly rate for a timekeeper vs. the
   rate contracted for them in the engagement letter (`settings.billing.rate_caps`,
   read off the letter in-session). This is the one deterministic check here:
@@ -26,6 +26,20 @@ Two independent check families:
   proxy, not a fact: a date with no matching correspondence may simply mean
   the work happened by phone, in person, or in a system this pipeline
   doesn't see (internal firm research, drafting with nothing sent that day).
+- **Calls** (`settings.billing.call_analysis`, off by default) — attendance
+  (`CallRecord.attendees`) is a hard calendar fact; whether that attendance
+  produced anything is not. Two modes, picked per call by what data exists
+  (`"auto"`), never guessed: `"attendance"` flags a confirmed attendee with
+  no correspondence around the call (`call_no_output`) — the same proxy
+  caveat as the hours-vs-correspondence check, since presence on a call
+  doesn't rule out real, unlogged contribution; `"transcript"` flags a
+  confirmed attendee whose meeting transcript shows under
+  `call_min_speaking_seconds` of speaking (`call_no_contribution`) — only
+  possible when a transcript was actually fetched for that call (most
+  won't have one), and a genuine step up in sensitivity over everything
+  else here: it looks at what was said, not just whether work exists
+  around the call. See the README for why this one is opt-in and off by
+  default.
 
 Every flag is a candidate for manual invoice review, never a verdict.
 """
@@ -33,7 +47,7 @@ Every flag is a candidate for manual invoice review, never a verdict.
 from __future__ import annotations
 
 from counsel_analytics.config import Settings
-from counsel_analytics.models import BillingSignal, CommentThread, Evidence, MatterRef, TimeEntry
+from counsel_analytics.models import BillingSignal, CallRecord, CommentThread, Evidence, MatterRef, TimeEntry
 
 _NARRATIVE_MAX_CHARS = 200
 
@@ -47,13 +61,41 @@ def _matching_messages(entry: TimeEntry, comment_threads: list[CommentThread], w
     return matches
 
 
+def _name_matches_identity(name: str, identity: str) -> bool:
+    """Heuristic, not exact: an invoice shows 'Newton-Savage, H.' while a
+    calendar shows 'henry.newton-savage@cliffordchance.com'. Every
+    meaningful token of the timekeeper's name must appear in the identity
+    string — no attempt at a cleverer match, so a miss is a silent
+    non-match rather than a wrong one."""
+    tokens = [t for t in name.lower().replace("-", " ").replace(",", " ").split() if len(t) > 1]
+    if not tokens:
+        return False
+    identity_norm = identity.lower()
+    return all(t in identity_norm for t in tokens)
+
+
+def _matching_calls(
+    entry: TimeEntry, call_records: list[CallRecord], window_days: int
+) -> list[tuple[CallRecord, str]]:
+    matches = []
+    for call in call_records:
+        if abs((call.start.date() - entry.entry_date.date()).days) > window_days:
+            continue
+        identity = next((a for a in call.attendees if _name_matches_identity(entry.timekeeper_name, a)), None)
+        if identity:
+            matches.append((call, identity))
+    return matches
+
+
 def compute_billing_signals(
     matter_ref: MatterRef,
     time_entries: list[TimeEntry],
     comment_threads: list[CommentThread],
     settings: Settings,
+    call_records: list[CallRecord] | None = None,
 ) -> list[BillingSignal]:
     settings_billing = settings.billing
+    call_records = call_records or []
     signals: list[BillingSignal] = []
 
     for entry in time_entries:
@@ -110,30 +152,83 @@ def compute_billing_signals(
                     evidence=evidence,
                 )
             )
+        else:
+            hours_per_100_words = entry.hours / (observed_words / 100)
+            if hours_per_100_words >= settings_billing.hours_per_100_words_threshold:
+                signals.append(
+                    BillingSignal(
+                        timekeeper_name=entry.timekeeper_name,
+                        timekeeper_role=entry.timekeeper_role,
+                        entry_date=entry.entry_date,
+                        hours=entry.hours,
+                        narrative=narrative,
+                        flag="high_hours_per_output",
+                        observed_activity_words=observed_words,
+                        note=(
+                            f"{entry.hours:.2f}h billed on {entry.entry_date.date()} (\"{narrative}\") "
+                            f"against {observed_words} word(s) of matching correspondence within "
+                            f"{settings_billing.window_days} day(s) ({hours_per_100_words:.2f}h per 100 "
+                            f"words, threshold {settings_billing.hours_per_100_words_threshold:.2f}). "
+                            "Correspondence volume is a rough proxy for the work actually visible in "
+                            "this system, not a timer on the lawyer's day — flagged for manual invoice "
+                            "review, not a finding of overbilling."
+                        ),
+                        evidence=evidence,
+                    )
+                )
+
+        if settings_billing.call_analysis == "off":
             continue
 
-        hours_per_100_words = entry.hours / (observed_words / 100)
-        if hours_per_100_words >= settings_billing.hours_per_100_words_threshold:
-            signals.append(
-                BillingSignal(
-                    timekeeper_name=entry.timekeeper_name,
-                    timekeeper_role=entry.timekeeper_role,
-                    entry_date=entry.entry_date,
-                    hours=entry.hours,
-                    narrative=narrative,
-                    flag="high_hours_per_output",
-                    observed_activity_words=observed_words,
-                    note=(
-                        f"{entry.hours:.2f}h billed on {entry.entry_date.date()} (\"{narrative}\") "
-                        f"against {observed_words} word(s) of matching correspondence within "
-                        f"{settings_billing.window_days} day(s) ({hours_per_100_words:.2f}h per 100 "
-                        f"words, threshold {settings_billing.hours_per_100_words_threshold:.2f}). "
-                        "Correspondence volume is a rough proxy for the work actually visible in "
-                        "this system, not a timer on the lawyer's day — flagged for manual invoice "
-                        "review, not a finding of overbilling."
-                    ),
-                    evidence=evidence,
-                )
+        for call, identity in _matching_calls(entry, call_records, settings_billing.window_days):
+            spoke = call.speaking_seconds.get(identity)
+            subject = call.subject or "an unnamed call"
+            call_evidence = Evidence(
+                timestamps=[entry.entry_date, call.start, call.end],
+                quotes=[f"{subject}: {call.start.isoformat()} - {call.end.isoformat()}"],
             )
+
+            if spoke is not None and settings_billing.call_analysis in ("transcript", "auto"):
+                if spoke < settings_billing.call_min_speaking_seconds:
+                    signals.append(
+                        BillingSignal(
+                            timekeeper_name=entry.timekeeper_name,
+                            timekeeper_role=entry.timekeeper_role,
+                            entry_date=entry.entry_date,
+                            hours=entry.hours,
+                            narrative=narrative,
+                            flag="call_no_contribution",
+                            observed_activity_words=observed_words,
+                            note=(
+                                f"Attended \"{subject}\" on {call.start.date()}; the meeting transcript "
+                                f"shows {spoke:.0f}s of speaking time, below the "
+                                f"{settings_billing.call_min_speaking_seconds:.0f}s threshold. This looks "
+                                "at what was said in the meeting, not just whether work exists around "
+                                "it — flagged for manual invoice review, not a finding that nothing of "
+                                "value was contributed (reviewing without speaking is real work)."
+                            ),
+                            evidence=call_evidence,
+                        )
+                    )
+            elif settings_billing.call_analysis in ("attendance", "auto") and observed_words == 0:
+                signals.append(
+                    BillingSignal(
+                        timekeeper_name=entry.timekeeper_name,
+                        timekeeper_role=entry.timekeeper_role,
+                        entry_date=entry.entry_date,
+                        hours=entry.hours,
+                        narrative=narrative,
+                        flag="call_no_output",
+                        observed_activity_words=0,
+                        note=(
+                            f"Confirmed attendance at \"{subject}\" on {call.start.date()}, but no "
+                            f"correspondence followed within {settings_billing.window_days} day(s). "
+                            "Calendar attendance is a hard fact; the absence of follow-up is not proof "
+                            "nothing happened in the call — flagged for manual invoice review, not a "
+                            "finding of overbilling."
+                        ),
+                        evidence=call_evidence,
+                    )
+                )
 
     return signals
