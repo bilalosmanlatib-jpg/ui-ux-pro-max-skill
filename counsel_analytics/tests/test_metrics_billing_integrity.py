@@ -11,7 +11,13 @@ def _settings(**billing_overrides) -> Settings:
     return Settings(matter_ids=["LIB!3000"], billing=BillingSettings(**billing_overrides))
 
 
-def _entry(hours: float, narrative: str = "Review and respond to lender email.") -> TimeEntry:
+def _entry(
+    hours: float,
+    narrative: str = "Review and respond to lender email.",
+    *,
+    rate: float | None = None,
+    currency: str | None = None,
+) -> TimeEntry:
     return TimeEntry(
         matter_id="LIB!3000",
         timekeeper_name="Jane Doe",
@@ -19,6 +25,8 @@ def _entry(hours: float, narrative: str = "Review and respond to lender email.")
         entry_date=datetime(2026, 2, 6, tzinfo=timezone.utc),
         hours=hours,
         narrative=narrative,
+        rate=rate,
+        currency=currency,
     )
 
 
@@ -78,3 +86,40 @@ def test_note_never_claims_overbilling_as_a_finding():
     signals = compute_billing_signals(MATTER_REF, [_entry(5.0)], [], _settings())
     note = signals[0].note.lower()
     assert "not a finding of overbilling" in note
+
+
+def test_flags_rate_cap_violation_regardless_of_hours():
+    # Below hours_min_to_flag, so the hours-based checks would stay silent --
+    # the rate check must still fire, since a wrong rate is a contract issue
+    # at any volume.
+    entry = _entry(0.1, rate=525.0, currency="EUR")
+    signals = compute_billing_signals(
+        MATTER_REF, [entry], [], _settings(rate_caps={"Jane Doe": 500.0})
+    )
+    assert len(signals) == 1
+    assert signals[0].flag == "rate_cap_violation"
+    assert "525.00" in signals[0].note and "500.00" in signals[0].note
+
+
+def test_does_not_flag_rate_at_or_below_cap():
+    entry = _entry(5.0, rate=500.0)
+    signals = compute_billing_signals(
+        MATTER_REF, [entry], [], _settings(rate_caps={"Jane Doe": 500.0})
+    )
+    flags = {s.flag for s in signals}
+    assert "rate_cap_violation" not in flags
+
+
+def test_rate_check_ignored_when_timekeeper_has_no_configured_cap():
+    entry = _entry(0.1, rate=10000.0)
+    signals = compute_billing_signals(MATTER_REF, [entry], [], _settings())
+    assert signals == []
+
+
+def test_entry_can_carry_both_rate_and_activity_flags():
+    entry = _entry(5.0, rate=525.0)
+    signals = compute_billing_signals(
+        MATTER_REF, [entry], [], _settings(rate_caps={"Jane Doe": 500.0})
+    )
+    flags = {s.flag for s in signals}
+    assert flags == {"rate_cap_violation", "no_matching_activity"}

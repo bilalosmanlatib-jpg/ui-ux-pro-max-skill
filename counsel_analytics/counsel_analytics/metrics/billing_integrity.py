@@ -10,15 +10,24 @@ against work actually produced — it's invoice/vendor-spend audit, not
 behavioral profiling, and the two must never be merged: `BillingSignal` is
 a distinct type from `Metric`, and `anonymize_authors` never touches it.
 
-Only correspondence is used as the "observed activity" proxy in this MVP
-(every message is already timestamped and word-countable). Redline/diff
-volume is a natural extension once diffs are joined back to the version
-event timestamps they came from — not wired here.
+Two independent check families:
+- **Rate-cap violation** — the invoiced hourly rate for a timekeeper vs. the
+  rate contracted for them in the engagement letter (`settings.billing.rate_caps`,
+  read off the letter in-session). This is the one deterministic check here:
+  no heuristic, no tolerance band — a contract fixes a rate, an invoice either
+  matches it or doesn't. Checked on every entry with both an invoiced rate
+  and a configured cap, regardless of `hours_min_to_flag`, since a wrong rate
+  is a contract breach at any volume.
+- **Hours vs. observed activity** — only correspondence is used as the
+  "observed activity" proxy in this MVP (every message is already
+  timestamped and word-countable). Redline/diff volume is a natural
+  extension once diffs are joined back to the version event timestamps
+  they came from — not wired here. Unlike the rate check, this is a rough
+  proxy, not a fact: a date with no matching correspondence may simply mean
+  the work happened by phone, in person, or in a system this pipeline
+  doesn't see (internal firm research, drafting with nothing sent that day).
 
-Every flag is a candidate for manual invoice review, never a finding of
-overbilling: a date with no matching correspondence may simply mean the
-work happened by phone, in person, or in a system this pipeline doesn't
-see (internal firm research, drafting with nothing sent that day).
+Every flag is a candidate for manual invoice review, never a verdict.
 """
 
 from __future__ import annotations
@@ -48,6 +57,29 @@ def compute_billing_signals(
     signals: list[BillingSignal] = []
 
     for entry in time_entries:
+        cap = settings_billing.rate_caps.get(entry.timekeeper_name)
+        if cap is not None and entry.rate is not None and entry.rate > cap + 1e-6:
+            narrative = entry.narrative[:_NARRATIVE_MAX_CHARS]
+            signals.append(
+                BillingSignal(
+                    timekeeper_name=entry.timekeeper_name,
+                    timekeeper_role=entry.timekeeper_role,
+                    entry_date=entry.entry_date,
+                    hours=entry.hours,
+                    narrative=narrative,
+                    flag="rate_cap_violation",
+                    observed_activity_words=0,
+                    note=(
+                        f"Invoiced at {entry.rate:.2f}{('/' + entry.currency) if entry.currency else ''} "
+                        f"per hour on {entry.entry_date.date()}, against a contracted rate of "
+                        f"{cap:.2f} for {entry.timekeeper_name} under the engagement letter — "
+                        f"{entry.rate - cap:.2f} over the agreed rate. Flagged for manual invoice "
+                        "review against the contract, not a finding of deliberate overbilling."
+                    ),
+                    evidence=Evidence(timestamps=[entry.entry_date]),
+                )
+            )
+
         if entry.hours < settings_billing.hours_min_to_flag:
             continue
 

@@ -73,3 +73,8 @@ billing:
   # Flag an entry whose hours, relative to the words of matching
   # correspondence found, exceed this ratio.
   hours_per_100_words_threshold: 1.5
+  # Contracted hourly rate per timekeeper, read off the engagement letter.
+  # Any invoiced rate above this is flagged regardless of hours -- this is
+  # a deterministic contract check, not a heuristic.
+  rate_caps: {}
+  #   "Henry Newton-Savage": 500.0

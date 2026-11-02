@@ -191,7 +191,12 @@ live MCP calls or credentials needed.
   matching correspondence. `billing.hours_min_to_flag` (default 0.5) — entries
   billed below this are too small to usefully flag. `billing.hours_per_100_words_threshold`
   (default 1.5) — flags an entry whose hours are disproportionate to the
-  words of matching correspondence found. Unaffected by `anonymize_authors`.
+  words of matching correspondence found. `billing.rate_caps` (a
+  timekeeper-name-to-rate map, read off the engagement letter) — flags any
+  invoiced rate above the contracted one for that name, unconditionally
+  (not gated by `hours_min_to_flag`): a deterministic contract check, not a
+  heuristic, and the most defensible of the billing-integrity checks for
+  that reason. Unaffected by `anonymize_authors`.
 
 A firm needs 2+ matters with a resolvable firm before `metrics/aggregate.py`
 will roll it up at all (a single matter has nothing to trend against) —

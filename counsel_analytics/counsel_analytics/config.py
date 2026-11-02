@@ -30,6 +30,12 @@ class BillingSettings(BaseModel):
     window_days: int = 1
     hours_min_to_flag: float = 0.5
     hours_per_100_words_threshold: float = 1.5
+    # Contracted hourly rate per timekeeper, read off the engagement letter
+    # (e.g. a Supplemental Engagement Letter's rate-card section). Checked
+    # unconditionally against every invoiced rate for that name, regardless
+    # of hours_min_to_flag -- a wrong rate is a contract breach at any
+    # volume, not a noisy signal to filter out.
+    rate_caps: dict[str, float] = Field(default_factory=dict)
 
 
 class Settings(BaseModel):
